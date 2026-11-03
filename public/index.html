@@ -4,31 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>family hub — metro panorama</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=12" />
 </head>
 <body>
   <!-- TOP PANORAMA HEADER -->
   <header class="panorama-header">
     <div class="panorama-brand">
       <h1 class="panorama-title" id="hubTitle">family hub</h1>
-      <span class="panorama-subtitle" id="hubSubtitle">panorama</span>
+      <span class="panorama-subtitle" id="hubWeather" title="Current local weather"></span>
     </div>
 
-    <div class="panorama-status">
-      <div>
-        <span class="clock-time" id="clockTime">10:45</span>
+    <div class="panorama-status" id="headerSettingsTrigger" title="Open Settings">
+      <div class="clock-group">
         <span class="clock-date" id="clockDate">tuesday, nov 3</span>
+        <span class="clock-time" id="clockTime">10:45</span>
       </div>
       <div class="header-actions">
-        <button class="metro-btn" id="btnCalendars" title="Connect & toggle read-only Google & Microsoft calendars">
-          calendars
-        </button>
-        <button class="metro-btn" id="btnExtensions" title="Toggle modular extensions on/off">
-          extensions
-        </button>
-        <button class="metro-circle-btn" id="btnTheme" title="Toggle Dark / Light Metro Theme">
-          ◐
-        </button>
+        <button class="metro-ellipsis-btn global-ellipsis" id="btnSettings" title="Settings & Extensions">•••</button>
       </div>
     </div>
   </header>
@@ -48,6 +40,6 @@
   <!-- METRO NOTIFICATION TOAST -->
   <div class="toast-banner" id="toastBanner"></div>
 
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/app.js?v=12"></script>
 </body>
 </html>

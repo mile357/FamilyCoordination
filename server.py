@@ -5,11 +5,12 @@ Also works alongside the Node/TypeScript Vite setup or standalone on Ubuntu/macO
 """
 import json
 import os
+import re
 import sqlite3
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 PORT = int(os.environ.get("PORT", 8080))
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "hub.db")
@@ -28,6 +29,7 @@ def get_initial_state():
             "familyName": "family hub",
             "accentColor": "#00ABA9",  # Metro Teal
             "theme": "dark",
+            "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
             "kioskMode": False,
         },
         "extensions": {
@@ -404,6 +406,205 @@ def write_state(new_state):
     conn.close()
 
 
+def _parse_ics_datetime(raw_val):
+    """Parse iCalendar DTSTART/DTEND value into local ISO format string."""
+    val = raw_val.strip()
+    if ":" in val:
+        val = val.split(":", 1)[1].strip()
+    # Date-only (all-day event): YYYYMMDD
+    if len(val) == 8 and val.isdigit():
+        dt = datetime.strptime(val, "%Y%m%d").replace(hour=8, minute=0)
+        return dt.isoformat()
+    # Date-time: YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ
+    m = re.match(r"^(\d{8})T(\d{4,6})(Z?)$", val)
+    if m:
+        date_part, time_part, is_utc = m.groups()
+        time_part = time_part[:6].ljust(6, "0")
+        dt = datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
+        if is_utc == "Z":
+            dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+        return dt.isoformat()
+    return None
+
+
+def fetch_and_parse_ics(ics_url, calendar_id):
+    """Fetch a read-only .ics feed (Google / Microsoft / iCloud) and return upcoming events."""
+    req_url = ics_url.strip()
+    if req_url.startswith("webcal://"):
+        req_url = "https://" + req_url[len("webcal://") :]
+    req = urllib.request.Request(
+        req_url,
+        headers={"User-Agent": "MetroFamilyHub/1.0 (Read-Only Calendar Sync)"},
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        raw_ics = resp.read().decode("utf-8", errors="replace")
+
+    # Unfold RFC 5545 folded lines
+    unfolded = re.sub(r"\r?\n[ \t]", "", raw_ics)
+    lines = unfolded.splitlines()
+
+    events = []
+    in_event = False
+    cur = {}
+    window_start = datetime.now() - timedelta(days=2)
+    window_end = datetime.now() + timedelta(days=14)
+
+    for line in lines:
+        if line.strip() == "BEGIN:VEVENT":
+            in_event = True
+            cur = {}
+        elif line.strip() == "END:VEVENT":
+            in_event = False
+            start_iso = cur.get("start")
+            if start_iso and cur.get("title"):
+                try:
+                    st_dt = datetime.fromisoformat(start_iso)
+                    if window_start <= st_dt <= window_end:
+                        end_iso = cur.get("end") or (st_dt + timedelta(hours=1)).isoformat()
+                        events.append(
+                            {
+                                "id": f"ics-{calendar_id}-{len(events)}-{int(st_dt.timestamp())}",
+                                "calendarId": calendar_id,
+                                "title": cur.get("title", "Busy"),
+                                "start": start_iso,
+                                "end": end_iso,
+                                "location": cur.get("location", ""),
+                            }
+                        )
+                except Exception:
+                    pass
+        elif in_event:
+            if line.startswith("SUMMARY"):
+                cur["title"] = line.split(":", 1)[1].strip().replace("\\,", ",").replace("\\n", " ") if ":" in line else ""
+            elif line.startswith("LOCATION"):
+                cur["location"] = line.split(":", 1)[1].strip().replace("\\,", ",") if ":" in line else ""
+            elif line.startswith("DTSTART"):
+                parsed = _parse_ics_datetime(line)
+                if parsed:
+                    cur["start"] = parsed
+            elif line.startswith("DTEND"):
+                parsed = _parse_ics_datetime(line)
+                if parsed:
+                    cur["end"] = parsed
+
+    return events
+
+
+def _resolve_coordinates(location_query):
+    """Resolve a US 5-digit ZIP code (via Zippopotam.us) or city/postal query (via Open-Meteo)."""
+    clean_q = (location_query or "").strip()
+    if not clean_q:
+        return None
+    # 1. If 5-digit US ZIP code, use Zippopotam.us (reliable for all US ZIP codes)
+    if re.match(r"^\d{5}$", clean_q):
+        try:
+            z_url = f"https://api.zippopotam.us/us/{clean_q}"
+            req = urllib.request.Request(z_url, headers={"User-Agent": "MetroFamilyHub/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                z_data = json.loads(resp.read().decode("utf-8"))
+            places = z_data.get("places") or []
+            if places:
+                p = places[0]
+                return {
+                    "lat": float(p["latitude"]),
+                    "lon": float(p["longitude"]),
+                    "name": f"{p.get('place name', clean_q)}, {p.get('state abbreviation', '')}".strip(", "),
+                }
+        except Exception:
+            pass
+
+    # 2. Fallback to Open-Meteo geocoding search
+    try:
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={quote(clean_q)}&count=5&language=en&format=json"
+        req = urllib.request.Request(geo_url, headers={"User-Agent": "MetroFamilyHub/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            geo_data = json.loads(resp.read().decode("utf-8"))
+        results = geo_data.get("results") or []
+        if results:
+            chosen = next((r for r in results if r.get("country_code") == "US"), results[0])
+            return {
+                "lat": float(chosen["latitude"]),
+                "lon": float(chosen["longitude"]),
+                "name": chosen.get("name", clean_q),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def fetch_weather_for_zip(zip_code):
+    """Resolve ZIP code and fetch current, min, max temp + precipitation probability."""
+    loc = _resolve_coordinates(zip_code)
+    if not loc:
+        return None
+    try:
+        lat = loc["lat"]
+        lon = loc["lon"]
+        wx_url = (
+            f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+            "&current=temperature_2m,precipitation_probability,weather_code"
+            "&hourly=temperature_2m,precipitation_probability"
+            "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+            "&temperature_unit=fahrenheit&timezone=auto&forecast_days=1"
+        )
+        req_wx = urllib.request.Request(wx_url, headers={"User-Agent": "MetroFamilyHub/1.0"})
+        with urllib.request.urlopen(req_wx, timeout=8) as resp:
+            wx_data = json.loads(resp.read().decode("utf-8"))
+
+        cur = wx_data.get("current") or {}
+        daily = wx_data.get("daily") or {}
+        hourly = wx_data.get("hourly") or {}
+
+        temp_f = round(cur.get("temperature_2m", 68))
+        min_list = daily.get("temperature_2m_min") or [temp_f - 8]
+        max_list = daily.get("temperature_2m_max") or [temp_f + 8]
+        min_f = round(min_list[0])
+        max_f = round(max_list[0])
+
+        # Determine if rest of day is trending warmer (toward high) or cooler (toward min)
+        hourly_temps = hourly.get("temperature_2m") or []
+        now_hr = min(datetime.now().hour, max(len(hourly_temps) - 1, 0))
+        future_temps = hourly_temps[now_hr : now_hr + 6] if hourly_temps else []
+        trending_warmer = (max(future_temps) > temp_f) if future_temps else (datetime.now().hour < 15)
+
+        wmo = int(cur.get("weather_code", 0))
+        precip = cur.get("precipitation_probability")
+        if precip is None:
+            hourly_probs = hourly.get("precipitation_probability") or []
+            if hourly_probs and now_hr < len(hourly_probs):
+                precip = hourly_probs[now_hr]
+            else:
+                daily_probs = daily.get("precipitation_probability_max") or [0]
+                precip = daily_probs[0]
+
+        # Minimalist flat geometric Metro weather symbol based on WMO weather code
+        if wmo == 0:
+            icon = "☀"
+        elif wmo in (1, 2):
+            icon = "⛅"
+        elif wmo in (3, 45, 48):
+            icon = "☁"
+        elif wmo in (71, 73, 75, 77, 85, 86):
+            icon = "❄"
+        elif wmo in (95, 96, 99):
+            icon = "⚡"
+        else:
+            icon = "☂"
+
+        return {
+            "tempF": temp_f,
+            "minF": min(min_f, temp_f),
+            "maxF": max(max_f, temp_f),
+            "trendingWarmer": bool(trending_warmer),
+            "precipChance": int(precip or 0),
+            "icon": icon,
+            "weatherCode": wmo,
+            "location": loc["name"],
+        }
+    except Exception:
+        return None
+
+
 class HubRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
@@ -411,12 +612,17 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def _send_json(self, data, status=200):
         raw = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(raw)
 
@@ -425,6 +631,45 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/state":
             self._send_json(read_state())
             return
+        if parsed.path == "/api/sync-calendars":
+            try:
+                state = read_state()
+                synced_feeds = 0
+                for cal in state.get("calendars", []):
+                    ics_url = cal.get("icsUrl", "").strip()
+                    if ics_url.startswith(("http://", "https://", "webcal://")):
+                        feed_events = fetch_and_parse_ics(ics_url, cal["id"])
+                        # Replace events for this calendarId with freshly synced read-only feed events
+                        state["events"] = [
+                            ev for ev in state.get("events", []) if ev.get("calendarId") != cal["id"]
+                        ] + feed_events
+                        cal["lastSync"] = datetime.now().strftime("%-I:%M %p").lower()
+                        synced_feeds += 1
+                write_state(state)
+                self._send_json({"ok": True, "syncedFeeds": synced_feeds, "state": state})
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            return
+
+        if parsed.path == "/api/weather":
+            qs = parse_qs(parsed.query)
+            zip_code = (qs.get("zip") or [""])[0].strip()
+            if not zip_code:
+                st = read_state()
+                zip_code = (st.get("settings") or {}).get("zipCode", "98052")
+            wx = fetch_weather_for_zip(zip_code)
+            if wx:
+                self._send_json({"ok": True, "weather": wx})
+            else:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": f"Could not fetch live weather for {zip_code}",
+                    },
+                    status=502,
+                )
+            return
+
         if parsed.path == "/api/reset":
             initial = get_initial_state()
             write_state(initial)
@@ -444,6 +689,45 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": True, "state": new_state})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
+            return
+
+        if parsed.path == "/api/sync-calendars":
+            try:
+                state = read_state()
+                synced_feeds = 0
+                for cal in state.get("calendars", []):
+                    ics_url = cal.get("icsUrl", "").strip()
+                    if ics_url.startswith(("http://", "https://", "webcal://")):
+                        feed_events = fetch_and_parse_ics(ics_url, cal["id"])
+                        # Replace events for this calendarId with freshly synced read-only feed events
+                        state["events"] = [
+                            ev for ev in state.get("events", []) if ev.get("calendarId") != cal["id"]
+                        ] + feed_events
+                        cal["lastSync"] = datetime.now().strftime("%-I:%M %p").lower()
+                        synced_feeds += 1
+                write_state(state)
+                self._send_json({"ok": True, "syncedFeeds": synced_feeds, "state": state})
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            return
+
+        if parsed.path == "/api/weather":
+            qs = parse_qs(parsed.query)
+            zip_code = (qs.get("zip") or [""])[0].strip()
+            if not zip_code:
+                st = read_state()
+                zip_code = (st.get("settings") or {}).get("zipCode", "98052")
+            wx = fetch_weather_for_zip(zip_code)
+            if wx:
+                self._send_json({"ok": True, "weather": wx})
+            else:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": f"Could not fetch live weather for {zip_code}",
+                    },
+                    status=502,
+                )
             return
 
         if parsed.path == "/api/reset":

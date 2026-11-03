@@ -8,7 +8,11 @@
  *    Today's Hour-by-Hour view and Column 2 is always the Next 7 Days Agenda.
  * 3. Strict Column Sizing: Extensions placed in user columns occupy either a FULL
  *    column (`size: "full"`) or HALF column (`size: "half"`).
- * 4. Meal <-> Grocery Automatic Linking: Adding a meal from the catalog (or creating
+ * 4. Authentic Metro `•••` Ellipsis Command Drawer below each widget's title:
+ *    - Hides all chrome and `+ add` forms when idle ("Content, Not Chrome").
+ *    - Tapping `•••` reveals circular Metro command icons (`+` add, `↑/↓` full/half,
+ *      `i` details, `✕` remove) directly below the title.
+ * 5. Meal <-> Grocery Automatic Linking: Adding a meal from the catalog (or creating
  *    a new meal with linked grocery items) automatically adds all linked ingredients
  *    to the Grocery List.
  */
@@ -33,12 +37,35 @@ function registerExtension(definition) {
   ExtensionRegistry.set(definition.id, definition);
 }
 
-// Local UI state (pivots, active modals)
+// Local UI state (pivots, active modals, per-slot Metro command drawer state)
 const uiState = {
   mealsPivot: "plan", // "plan" | "catalog"
-  flyoutMode: null,   // "extensions" | "calendars" | "add-column" | "fill-half"
+  settingsPivot: "extensions", // "extensions" | "calendars" | "appearance"
+  flyoutMode: null,   // "settings" | "add-column" | "fill-half"
   targetColumnId: null,
+  slotDrawers: {},    // { [slotId]: { open: boolean, mode: null | "add" | "info" } }
 };
+
+function getSlotDrawerState(slotId) {
+  if (!uiState.slotDrawers[slotId]) {
+    uiState.slotDrawers[slotId] = { open: false, mode: null };
+  }
+  return uiState.slotDrawers[slotId];
+}
+
+function toggleSlotDrawer(slotId) {
+  const st = getSlotDrawerState(slotId);
+  st.open = !st.open;
+  if (!st.open) st.mode = null;
+  renderAll();
+}
+
+function setSlotDrawerMode(slotId, mode) {
+  const st = getSlotDrawerState(slotId);
+  st.open = true;
+  st.mode = st.mode === mode ? null : mode;
+  renderAll();
+}
 
 let appState = null;
 
@@ -58,6 +85,136 @@ async function loadState() {
   }
   applyThemeAndAccent();
   renderAll();
+  refreshWeather();
+}
+
+async function refreshWeather() {
+  if (!appState) return;
+  const zip = ((appState.settings && appState.settings.zipCode) || "98052").trim();
+  const el = document.getElementById("hubWeather");
+  if (!el) return;
+
+  try {
+    let wx = null;
+    // 1. Try browser-direct fetch (Zippopotam.us + Open-Meteo have full CORS headers)
+    if (/^\d{5}$/.test(zip)) {
+      const zRes = await fetch(`https://api.zippopotam.us/us/${zip}`);
+      if (zRes.ok) {
+        const zData = await zRes.json();
+        const p = (zData.places || [])[0];
+        if (p) {
+          const lat = parseFloat(p.latitude);
+          const lon = parseFloat(p.longitude);
+          const wRes = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+              `&current=temperature_2m,precipitation_probability,weather_code` +
+              `&hourly=temperature_2m,precipitation_probability` +
+              `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+              `&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`
+          );
+          if (wRes.ok) {
+            const wData = await wRes.json();
+            const cur = wData.current || {};
+            const daily = wData.daily || {};
+            const hourly = wData.hourly || {};
+            const tempF = Math.round(cur.temperature_2m ?? 68);
+            const minF = Math.min(tempF, Math.round((daily.temperature_2m_min || [tempF - 8])[0]));
+            const maxF = Math.max(tempF, Math.round((daily.temperature_2m_max || [tempF + 8])[0]));
+            const nowHr = new Date().getHours();
+            const hTemps = hourly.temperature_2m || [];
+            const futureTemps = hTemps.slice(nowHr, nowHr + 6);
+            const trendingWarmer = futureTemps.length
+              ? Math.max(...futureTemps) > tempF
+              : nowHr < 15;
+            const wmo = Number(cur.weather_code ?? 0);
+            let precip = cur.precipitation_probability;
+            if (precip == null) {
+              precip = (hourly.precipitation_probability || [])[nowHr] ?? 0;
+            }
+            let icon = "☂\uFE0E";
+            if (wmo === 0) icon = "☀\uFE0E";
+            else if (wmo === 1 || wmo === 2) icon = "⛅\uFE0E";
+            else if (wmo === 3 || wmo === 45 || wmo === 48) icon = "☁\uFE0E";
+            else if ([71, 73, 75, 77, 85, 86].includes(wmo)) icon = "❄\uFE0E";
+            else if ([95, 96, 99].includes(wmo)) icon = "⚡\uFE0E";
+
+            wx = {
+              tempF,
+              minF,
+              maxF,
+              trendingWarmer,
+              precipChance: Math.round(precip || 0),
+              icon,
+              location: `${p["place name"]}, ${p["state abbreviation"]}`,
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Fallback to backend /api/weather endpoint
+    if (!wx) {
+      const res = await fetch(`/api/weather?zip=${encodeURIComponent(zip)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.weather) wx = data.weather;
+      }
+    }
+
+    if (wx) {
+      renderWeatherLine(el, wx, zip);
+    }
+  } catch (e) {}
+}
+
+function renderWeatherLine(el, wx, zip) {
+  const minF = Math.min(wx.minF ?? wx.tempF - 6, wx.tempF);
+  const maxF = Math.max(wx.maxF ?? wx.tempF + 6, wx.tempF);
+  const curF = wx.tempF;
+
+  const totalBarPx = 56;
+  const precipHtml =
+    wx.precipChance > 33 ? `<span class="wx-precip">${wx.precipChance}%</span>` : "";
+  const iconText = String(wx.icon || "☀").replace(/\uFE0F/g, "") + "\uFE0E";
+
+  let tempScaleHtml = "";
+
+  if (curF <= minF) {
+    // Current temp is at the daily low: show large current temp on the far left
+    tempScaleHtml = `
+      <span class="wx-current">${curF}°</span>
+      <span class="wx-bar" style="width:${totalBarPx}px"></span>
+      <span class="wx-bound">${maxF}°</span>
+    `;
+  } else if (curF >= maxF) {
+    // Current temp is at the daily high: show large current temp on the far right
+    tempScaleHtml = `
+      <span class="wx-bound">${minF}°</span>
+      <span class="wx-bar" style="width:${totalBarPx}px"></span>
+      <span class="wx-current">${curF}°</span>
+    `;
+  } else {
+    // Strictly linear position between low and high: (cur - min) / (max - min)
+    const range = Math.max(maxF - minF, 1);
+    const ratio = (curF - minF) / range;
+    const leftBarPx = Math.max(6, Math.round(totalBarPx * ratio));
+    const rightBarPx = Math.max(6, totalBarPx - leftBarPx);
+
+    tempScaleHtml = `
+      <span class="wx-bound">${minF}°</span>
+      <span class="wx-bar" style="width:${leftBarPx}px"></span>
+      <span class="wx-current">${curF}°</span>
+      <span class="wx-bar" style="width:${rightBarPx}px"></span>
+      <span class="wx-bound">${maxF}°</span>
+    `;
+  }
+
+  el.innerHTML = `
+    ${tempScaleHtml}
+    <span class="wx-icon">${iconText}</span>
+    ${precipHtml}
+  `;
+  el.title = `${wx.location || zip}: Low ${minF}°, Current ${curF}°, High ${maxF}° (${wx.precipChance}% precip)`;
 }
 
 async function saveState(toastMessage = null) {
@@ -102,6 +259,8 @@ registerExtension({
   renderTodayColumn() {
     const col = document.createElement("section");
     col.className = "metro-column";
+    const slotId = "pinned-cal-today";
+    const drawer = getSlotDrawerState(slotId);
 
     const visibleCalIds = new Set(
       appState.calendars.filter((c) => c.visible).map((c) => c.id)
@@ -126,42 +285,72 @@ registerExtension({
     slot.className = "metro-slot size-full";
     slot.style.setProperty("--slot-accent", "#00ABA9");
 
-    // Header
     slot.innerHTML = `
       <div class="slot-header">
         <div class="slot-title-group">
           <h2 class="slot-title">today</h2>
         </div>
         <div class="slot-controls">
-          <button class="slot-icon-btn" data-action="open-calendars">sources (${appState.calendars.filter(c => c.visible).length}/${appState.calendars.length})</button>
+          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
         </div>
       </div>
-      <div class="calendar-filter-strip" id="todayCalFilterStrip"></div>
+      <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+        <div class="slot-appbar-row">
+          <div class="slot-info-inline">${
+            drawer.mode === "info"
+              ? "Pinned hour-by-hour view of Today. Tap a calendar chip below to toggle visibility."
+              : ""
+          }</div>
+          <div class="slot-appbar-icons">
+            <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
+              <span class="appbar-cmd-circle">i</span>
+              <span class="appbar-cmd-label">info</span>
+            </button>
+            <button class="appbar-cmd" data-cmd="feeds">
+              <span class="appbar-cmd-circle">⚙</span>
+              <span class="appbar-cmd-label">feeds</span>
+            </button>
+          </div>
+        </div>
+        <div class="slot-inline-pane" id="todayInlinePane"></div>
+      </div>
       <div class="slot-body" id="todayHourlyBody">
         <div class="hour-timeline" id="todayTimeline"></div>
       </div>
     `;
 
-    // Interactive calendar toggle chips
-    const strip = slot.querySelector("#todayCalFilterStrip");
-    appState.calendars.forEach((cal) => {
-      const chip = document.createElement("button");
-      chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
-      chip.style.setProperty("--cal-color", cal.color);
-      chip.innerHTML = `<span>${cal.provider === "google" ? "G" : "M"}</span> <span>${escapeHtml(cal.name)}</span>`;
-      chip.title = `${cal.account} — Tap to toggle visibility`;
-      chip.addEventListener("click", () => {
-        cal.visible = !cal.visible;
-        saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
+    slot.querySelector(".slot-header").addEventListener("click", () => {
+      toggleSlotDrawer(slotId);
+    });
+
+    slot.querySelector('[data-cmd="info"]').addEventListener("click", () => {
+      setSlotDrawerMode(slotId, "info");
+    });
+
+    slot.querySelector('[data-cmd="feeds"]').addEventListener("click", () => {
+      openFlyout("settings", "calendars");
+    });
+
+    if (drawer.open) {
+      const pane = slot.querySelector("#todayInlinePane");
+      pane.innerHTML = `
+        <div class="calendar-filter-strip" style="padding:0;" id="todayCalFilterStrip"></div>
+      `;
+      const strip = pane.querySelector("#todayCalFilterStrip");
+      appState.calendars.forEach((cal) => {
+        const chip = document.createElement("button");
+        chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
+        chip.style.setProperty("--cal-color", cal.color);
+        chip.innerHTML = `<span>${cal.provider === "google" ? "G" : "M"}</span> <span>${escapeHtml(cal.name)}</span>`;
+        chip.addEventListener("click", () => {
+          cal.visible = !cal.visible;
+          saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
+        });
+        strip.appendChild(chip);
       });
-      strip.appendChild(chip);
-    });
+    }
 
-    slot.querySelector('[data-action="open-calendars"]').addEventListener("click", () => {
-      openFlyout("calendars");
-    });
-
-    // Build 24-hour scrollable timeline (6 AM to 10 PM highlighted, full 0..23 available)
+    // Build 24-hour scrollable timeline (6 AM to 10 PM)
     const timeline = slot.querySelector("#todayTimeline");
     for (let hour = 6; hour <= 22; hour++) {
       const row = document.createElement("div");
@@ -210,6 +399,8 @@ registerExtension({
   renderAgendaColumn() {
     const col = document.createElement("section");
     col.className = "metro-column";
+    const slotId = "pinned-cal-agenda";
+    const drawer = getSlotDrawerState(slotId);
 
     const visibleCalIds = new Set(
       appState.calendars.filter((c) => c.visible).map((c) => c.id)
@@ -226,14 +417,41 @@ registerExtension({
           <h2 class="slot-title">next 7 days</h2>
         </div>
         <div class="slot-controls">
-          <button class="slot-icon-btn" data-action="add-mock-event">+ test event</button>
+          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
+        </div>
+      </div>
+      <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+        <div class="slot-appbar-row">
+          <div class="slot-info-inline">${
+            drawer.mode === "info"
+              ? `Read-only 7-day rolling family agenda across ${appState.calendars.filter((c) => c.visible).length} visible calendars.`
+              : ""
+          }</div>
+          <div class="slot-appbar-icons">
+            <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
+              <span class="appbar-cmd-circle">i</span>
+              <span class="appbar-cmd-label">info</span>
+            </button>
+            <button class="appbar-cmd" data-cmd="feeds">
+              <span class="appbar-cmd-circle">⚙</span>
+              <span class="appbar-cmd-label">feeds</span>
+            </button>
+          </div>
         </div>
       </div>
       <div class="slot-body" id="agendaBody"></div>
     `;
 
-    slot.querySelector('[data-action="add-mock-event"]').addEventListener("click", () => {
-      openFlyout("calendars");
+    slot.querySelector(".slot-header").addEventListener("click", () => {
+      toggleSlotDrawer(slotId);
+    });
+
+    slot.querySelector('[data-cmd="info"]').addEventListener("click", () => {
+      setSlotDrawerMode(slotId, "info");
+    });
+
+    slot.querySelector('[data-cmd="feeds"]').addEventListener("click", () => {
+      openFlyout("settings", "calendars");
     });
 
     const body = slot.querySelector("#agendaBody");
@@ -313,7 +531,59 @@ registerExtension({
   name: "meal planner",
   accent: "#A20025",
   canAddToCustomColumn: true,
-  renderSlot(slotConfig, columnConfig) {
+  hasAddAction: true,
+  infoText: "Add meals to your family plan. Any grocery items linked to a meal are automatically queued onto your Grocery List whenever you add that meal.",
+  renderAddForm(slotConfig, onComplete) {
+    const formWrap = document.createElement("div");
+    formWrap.innerHTML = `
+      <div class="quick-form" style="margin-bottom:8px;">
+        <input class="metro-input" id="mealNameInput_${slotConfig.id}" placeholder="meal name (e.g. Street Tacos)..." list="catalogSuggestions_${slotConfig.id}" />
+        <datalist id="catalogSuggestions_${slotConfig.id}">
+          ${appState.mealCatalog.map((m) => `<option value="${escapeHtml(m.name)}"></option>`).join("")}
+        </datalist>
+        <button class="metro-btn accent" style="--accent:#A20025" id="btnQuickAddMeal_${slotConfig.id}">add</button>
+      </div>
+      <div class="quick-form" style="margin-bottom:0;">
+        <input class="metro-input" id="mealIngInput_${slotConfig.id}" placeholder="linked groceries (comma-separated, auto-fills if in catalog)..." />
+      </div>
+    `;
+
+    const nameInput = formWrap.querySelector(`#mealNameInput_${slotConfig.id}`);
+    const ingInput = formWrap.querySelector(`#mealIngInput_${slotConfig.id}`);
+
+    nameInput.addEventListener("input", () => {
+      const match = appState.mealCatalog.find(
+        (m) => m.name.toLowerCase() === nameInput.value.trim().toLowerCase()
+      );
+      if (match) {
+        ingInput.value = match.LinkedIngredients.join(", ");
+      }
+    });
+
+    const handleAddMeal = () => {
+      const rawName = nameInput.value.trim();
+      if (!rawName) return;
+      const rawIngs = ingInput.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      onComplete();
+      addMealAndAutoGroceries(rawName, rawIngs);
+    };
+
+    formWrap.querySelector(`#btnQuickAddMeal_${slotConfig.id}`).addEventListener("click", handleAddMeal);
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleAddMeal();
+    });
+    ingInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleAddMeal();
+    });
+
+    setTimeout(() => nameInput.focus(), 20);
+    return formWrap;
+  },
+  renderSlot(slotConfig) {
     const container = document.createElement("div");
     container.style.display = "flex";
     container.style.flexDirection = "column";
@@ -324,10 +594,10 @@ registerExtension({
     container.innerHTML = `
       <div class="sub-pivots">
         <button class="pivot-tab ${!isCatalog ? "active" : ""}" data-pivot="plan">
-          this week's meals (${appState.activeMeals.length})
+          this week (${appState.activeMeals.length})
         </button>
         <button class="pivot-tab ${isCatalog ? "active" : ""}" data-pivot="catalog">
-          saved meal catalog (${appState.mealCatalog.length})
+          catalog (${appState.mealCatalog.length})
         </button>
       </div>
       <div id="mealSubContent" style="flex:1; overflow-y:auto;"></div>
@@ -343,58 +613,6 @@ registerExtension({
     const sub = container.querySelector("#mealSubContent");
 
     if (!isCatalog) {
-      // Quick add from catalog or custom meal + linked ingredients
-      const formWrap = document.createElement("div");
-      formWrap.style.marginBottom = "12px";
-      formWrap.innerHTML = `
-        <div class="quick-form">
-          <input class="metro-input" id="mealNameInput_${slotConfig.id}" placeholder="add meal (e.g. Street Tacos)..." list="catalogSuggestions_${slotConfig.id}" />
-          <datalist id="catalogSuggestions_${slotConfig.id}">
-            ${appState.mealCatalog.map((m) => `<option value="${escapeHtml(m.name)}"></option>`).join("")}
-          </datalist>
-          <button class="metro-btn accent" style="--accent:#A20025" id="btnQuickAddMeal_${slotConfig.id}">+ add</button>
-        </div>
-        <div class="quick-form" style="margin-bottom:0;">
-          <input class="metro-input" id="mealIngInput_${slotConfig.id}" placeholder="linked groceries (comma-separated, auto-fills if in catalog)..." />
-        </div>
-      `;
-      sub.appendChild(formWrap);
-
-      const nameInput = formWrap.querySelector(`#mealNameInput_${slotConfig.id}`);
-      const ingInput = formWrap.querySelector(`#mealIngInput_${slotConfig.id}`);
-
-      // Auto-populate ingredients if meal matches catalog!
-      nameInput.addEventListener("input", () => {
-        const match = appState.mealCatalog.find(
-          (m) => m.name.toLowerCase() === nameInput.value.trim().toLowerCase()
-        );
-        if (match) {
-          ingInput.value = match.LinkedIngredients.join(", ");
-        }
-      });
-
-      const handleAddMeal = () => {
-        const rawName = nameInput.value.trim();
-        if (!rawName) return;
-        const rawIngs = ingInput.value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-        addMealAndAutoGroceries(rawName, rawIngs);
-        nameInput.value = "";
-        ingInput.value = "";
-      };
-
-      formWrap.querySelector(`#btnQuickAddMeal_${slotConfig.id}`).addEventListener("click", handleAddMeal);
-      nameInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") handleAddMeal();
-      });
-      ingInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") handleAddMeal();
-      });
-
-      // Render active meal cards
       const list = document.createElement("div");
       list.className = "metro-list";
 
@@ -405,7 +623,7 @@ registerExtension({
           <div class="meal-card-top">
             <div>
               <div class="meal-name">${escapeHtml(meal.name)}</div>
-              <div class="item-secondary">${ (meal.ingredients || []).length } linked grocery items</div>
+              <div class="item-secondary">${(meal.ingredients || []).length} linked grocery items</div>
             </div>
             <div style="display:flex; gap:6px;">
               <button class="slot-icon-btn" data-action="readd-groceries" title="Re-send all ingredients to grocery list">+ groceries</button>
@@ -434,13 +652,6 @@ registerExtension({
 
       sub.appendChild(list);
     } else {
-      // Saved Meal Catalog view: 1-tap adds the meal AND automatically adds all linked groceries
-      const info = document.createElement("div");
-      info.className = "item-secondary";
-      info.style.marginBottom = "10px";
-      info.textContent = "Tap '+ plan & auto-groceries' on any saved meal to add it to your list and automatically queue its ingredients.";
-      sub.appendChild(info);
-
       const list = document.createElement("div");
       list.className = "metro-list";
 
@@ -451,7 +662,7 @@ registerExtension({
           <div class="meal-card-top">
             <div class="meal-name">${escapeHtml(catMeal.name)}</div>
             <button class="metro-btn accent" style="--accent:#A20025; padding:4px 10px; font-size:12px;">
-              + plan & auto-groceries
+              + plan & groceries
             </button>
           </div>
           <div class="ingredient-tags">
@@ -494,7 +705,6 @@ function pushIngredientsToGroceries(mealName, ingredients) {
 }
 
 function addMealAndAutoGroceries(mealName, ingredientsList) {
-  // Check if meal is already in catalog; if not or if ingredients provided, update/save to catalog!
   let catalogEntry = appState.mealCatalog.find(
     (m) => m.name.toLowerCase() === mealName.toLowerCase()
   );
@@ -542,25 +752,22 @@ registerExtension({
   name: "grocery list",
   accent: "#60A917",
   canAddToCustomColumn: true,
-  renderSlot(slotConfig) {
-    const wrap = document.createElement("div");
-
-    const uncheckedCount = appState.groceries.filter((g) => !g.checked).length;
+  hasAddAction: true,
+  infoText: "Touch any item to check it off. Items added automatically from Meal Planner show their source meal underneath.",
+  renderAddForm(slotConfig, onComplete) {
     const checkedCount = appState.groceries.filter((g) => g.checked).length;
-
+    const wrap = document.createElement("div");
+    wrap.className = "quick-form";
+    wrap.style.marginBottom = "0";
     wrap.innerHTML = `
-      <div class="quick-form">
-        <input class="metro-input" id="grocInput_${slotConfig.id}" placeholder="add grocery item..." />
-        <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slotConfig.id}">+ add</button>
-        ${
-          checkedCount > 0
-            ? `<button class="metro-btn subtle" id="btnClearChecked_${slotConfig.id}" title="Clear completed items">clear (${checkedCount})</button>`
-            : ""
-        }
-      </div>
-      <div class="metro-list" id="grocList_${slotConfig.id}"></div>
+      <input class="metro-input" id="grocInput_${slotConfig.id}" placeholder="add grocery item..." />
+      <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slotConfig.id}">add</button>
+      ${
+        checkedCount > 0
+          ? `<button class="metro-btn subtle" id="btnClearChecked_${slotConfig.id}">clear (${checkedCount})</button>`
+          : ""
+      }
     `;
-
     const input = wrap.querySelector(`#grocInput_${slotConfig.id}`);
     const addGroc = () => {
       const val = input.value.trim();
@@ -571,25 +778,29 @@ registerExtension({
         checked: false,
         fromMeal: null,
       });
-      input.value = "";
+      onComplete();
       saveState(`Added "${val}" to groceries`);
     };
-
     wrap.querySelector(`#btnAddGroc_${slotConfig.id}`).addEventListener("click", addGroc);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") addGroc();
     });
-
     const clearBtn = wrap.querySelector(`#btnClearChecked_${slotConfig.id}`);
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
         appState.groceries = appState.groceries.filter((g) => !g.checked);
+        onComplete();
         saveState("Cleared checked grocery items");
       });
     }
+    setTimeout(() => input.focus(), 20);
+    return wrap;
+  },
+  renderSlot(slotConfig) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="metro-list" id="grocList_${slotConfig.id}"></div>`;
 
     const listEl = wrap.querySelector(`#grocList_${slotConfig.id}`);
-    // Sort unchecked first
     const sorted = [...appState.groceries].sort((a, b) => Number(a.checked) - Number(b.checked));
 
     sorted.forEach((item) => {
@@ -636,16 +847,16 @@ registerExtension({
   name: "daily chores",
   accent: "#FA6800",
   canAddToCustomColumn: true,
-  renderSlot(slotConfig) {
+  hasAddAction: true,
+  infoText: "Assign daily family responsibilities. Tip: use 'Name: Task' (e.g. 'Leo: Walk dog') when adding a chore.",
+  renderAddForm(slotConfig, onComplete) {
     const wrap = document.createElement("div");
+    wrap.className = "quick-form";
+    wrap.style.marginBottom = "0";
     wrap.innerHTML = `
-      <div class="quick-form">
-        <input class="metro-input" id="choreInput_${slotConfig.id}" placeholder="new chore (e.g. Leo: Feed dog)..." />
-        <button class="metro-btn accent" style="--accent:#FA6800" id="btnAddChore_${slotConfig.id}">+ add</button>
-      </div>
-      <div class="metro-list" id="choreList_${slotConfig.id}"></div>
+      <input class="metro-input" id="choreInput_${slotConfig.id}" placeholder="new chore (e.g. Leo: Feed dog)..." />
+      <button class="metro-btn accent" style="--accent:#FA6800" id="btnAddChore_${slotConfig.id}">add</button>
     `;
-
     const input = wrap.querySelector(`#choreInput_${slotConfig.id}`);
     const addChore = () => {
       const raw = input.value.trim();
@@ -663,14 +874,19 @@ registerExtension({
         assignee,
         done: false,
       });
-      input.value = "";
+      onComplete();
       saveState("Added chore");
     };
-
     wrap.querySelector(`#btnAddChore_${slotConfig.id}`).addEventListener("click", addChore);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") addChore();
     });
+    setTimeout(() => input.focus(), 20);
+    return wrap;
+  },
+  renderSlot(slotConfig) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="metro-list" id="choreList_${slotConfig.id}"></div>`;
 
     const listEl = wrap.querySelector(`#choreList_${slotConfig.id}`);
     appState.chores.forEach((c) => {
@@ -710,17 +926,17 @@ registerExtension({
   name: "family board",
   accent: "#6A00FF",
   canAddToCustomColumn: true,
-  renderSlot(slotConfig) {
+  hasAddAction: true,
+  infoText: "Pin shared announcements, Wi-Fi passwords, babysitter numbers, and weekend project reminders.",
+  renderAddForm(slotConfig, onComplete) {
     const wrap = document.createElement("div");
+    wrap.className = "quick-form";
+    wrap.style.marginBottom = "0";
     wrap.innerHTML = `
-      <div class="quick-form">
-        <input class="metro-input" id="noteTitle_${slotConfig.id}" placeholder="heading..." style="max-width:130px" />
-        <input class="metro-input" id="noteBody_${slotConfig.id}" placeholder="note text..." />
-        <button class="metro-btn accent" style="--accent:#6A00FF" id="btnAddNote_${slotConfig.id}">pin</button>
-      </div>
-      <div class="metro-list" id="noteList_${slotConfig.id}"></div>
+      <input class="metro-input" id="noteTitle_${slotConfig.id}" placeholder="heading..." style="max-width:120px" />
+      <input class="metro-input" id="noteBody_${slotConfig.id}" placeholder="note text..." />
+      <button class="metro-btn accent" style="--accent:#6A00FF" id="btnAddNote_${slotConfig.id}">pin</button>
     `;
-
     const tIn = wrap.querySelector(`#noteTitle_${slotConfig.id}`);
     const bIn = wrap.querySelector(`#noteBody_${slotConfig.id}`);
     const addNote = () => {
@@ -732,15 +948,19 @@ registerExtension({
         title: title.toLowerCase(),
         body,
       });
-      tIn.value = "";
-      bIn.value = "";
+      onComplete();
       saveState("Pinned family note");
     };
-
     wrap.querySelector(`#btnAddNote_${slotConfig.id}`).addEventListener("click", addNote);
     bIn.addEventListener("keydown", (e) => {
       if (e.key === "Enter") addNote();
     });
+    setTimeout(() => tIn.focus(), 20);
+    return wrap;
+  },
+  renderSlot(slotConfig) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="metro-list" id="noteList_${slotConfig.id}"></div>`;
 
     const listEl = wrap.querySelector(`#noteList_${slotConfig.id}`);
     appState.notes.forEach((n) => {
@@ -800,10 +1020,16 @@ function renderAll() {
     enabledSlots.forEach((slotConfig) => {
       const plugin = ExtensionRegistry.get(slotConfig.extensionId);
       const extMeta = appState.extensions[slotConfig.extensionId];
+      const drawer = getSlotDrawerState(slotConfig.id);
+
       const slotEl = document.createElement("div");
       const effectiveSize = slotConfig.size === "full" ? "size-full" : "size-half";
       slotEl.className = `metro-slot ${effectiveSize}`;
       slotEl.style.setProperty("--slot-accent", extMeta.accent || plugin.accent);
+
+      const isFull = slotConfig.size === "full";
+      const resizeArrow = isFull ? "↓" : "↑";
+      const resizeLabel = isFull ? "half col" : "full col";
 
       slotEl.innerHTML = `
         <div class="slot-header">
@@ -811,19 +1037,56 @@ function renderAll() {
             <h2 class="slot-title">${escapeHtml(plugin.name)}</h2>
           </div>
           <div class="slot-controls">
-            <button class="slot-icon-btn" data-action="toggle-size" title="Switch between Full Column and Half Column">
-              ${slotConfig.size === "full" ? "½ half" : "⤢ full"}
-            </button>
-            <button class="slot-icon-btn" data-action="remove-slot" title="Remove from column">✕</button>
+            <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
           </div>
+        </div>
+        <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+          <div class="slot-appbar-row">
+            <div class="slot-info-inline">${
+              drawer.mode === "info" && plugin.infoText ? escapeHtml(plugin.infoText) : ""
+            }</div>
+            <div class="slot-appbar-icons">
+              ${
+                plugin.infoText
+                  ? `
+                    <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
+                      <span class="appbar-cmd-circle">i</span>
+                      <span class="appbar-cmd-label">info</span>
+                    </button>
+                  `
+                  : ""
+              }
+              <button class="appbar-cmd" data-cmd="toggle-size">
+                <span class="appbar-cmd-circle">${resizeArrow}</span>
+                <span class="appbar-cmd-label">${resizeLabel}</span>
+              </button>
+              <button class="appbar-cmd" data-cmd="remove-slot">
+                <span class="appbar-cmd-circle">✕</span>
+                <span class="appbar-cmd-label">remove</span>
+              </button>
+            </div>
+          </div>
+          <div class="slot-inline-pane"></div>
         </div>
         <div class="slot-body"></div>
       `;
 
+      // Toggle `•••` command drawer when clicking anywhere on the widget header (title, ellipsis, or space between)
+      slotEl.querySelector(".slot-header").addEventListener("click", () => {
+        toggleSlotDrawer(slotConfig.id);
+      });
+
+      const infoBtn = slotEl.querySelector('[data-cmd="info"]');
+      if (infoBtn) {
+        infoBtn.addEventListener("click", () => {
+          setSlotDrawerMode(slotConfig.id, "info");
+        });
+      }
+
       // Toggle between Full-Column and Half-Column
-      slotEl.querySelector('[data-action="toggle-size"]').addEventListener("click", () => {
+      slotEl.querySelector('[data-cmd="toggle-size"]').addEventListener("click", () => {
+        uiState.slotDrawers[slotConfig.id] = { open: false, mode: null };
         if (slotConfig.size === "half") {
-          // Expanding to full column keeps only this slot in the column
           slotConfig.size = "full";
           colConfig.slots = [slotConfig];
           saveState(`Expanded ${plugin.name} to full column`);
@@ -834,13 +1097,24 @@ function renderAll() {
       });
 
       // Remove slot from column
-      slotEl.querySelector('[data-action="remove-slot"]').addEventListener("click", () => {
+      slotEl.querySelector('[data-cmd="remove-slot"]').addEventListener("click", () => {
+        delete uiState.slotDrawers[slotConfig.id];
         colConfig.slots = colConfig.slots.filter((s) => s.id !== slotConfig.id);
         if (colConfig.slots.length === 0) {
           appState.columns = appState.columns.filter((c) => c.id !== colConfig.id);
         }
         saveState(`Removed ${plugin.name} column slot`);
       });
+
+      // Immediately show the add/input UI below the icon row when the `•••` drawer is opened!
+      const inlinePane = slotEl.querySelector(".slot-inline-pane");
+      if (drawer.open && plugin.renderAddForm) {
+        inlinePane.appendChild(
+          plugin.renderAddForm(slotConfig, () => {
+            uiState.slotDrawers[slotConfig.id] = { open: false, mode: null };
+          })
+        );
+      }
 
       const bodyEl = slotEl.querySelector(".slot-body");
       bodyEl.appendChild(plugin.renderSlot(slotConfig, colConfig));
@@ -886,8 +1160,14 @@ function renderAll() {
 // ============================================================================
 // FLYOUT DRAWER: EXTENSIONS MANAGER, CALENDAR FEEDS, & COLUMN BUILDER
 // ============================================================================
-function openFlyout(mode) {
-  uiState.flyoutMode = mode;
+function openFlyout(mode, pivot = null) {
+  if (mode === "calendars" || mode === "extensions") {
+    uiState.flyoutMode = "settings";
+    uiState.settingsPivot = mode;
+  } else {
+    uiState.flyoutMode = mode;
+    if (pivot) uiState.settingsPivot = pivot;
+  }
   const backdrop = document.getElementById("flyoutBackdrop");
   backdrop.classList.add("open");
   renderFlyoutContent();
@@ -905,216 +1185,275 @@ function renderFlyoutContent() {
   const mode = uiState.flyoutMode;
   if (!mode) return;
 
-  if (mode === "extensions") {
+  if (mode === "settings") {
+    const activeTab = uiState.settingsPivot || "extensions";
+    const isDark = (appState.settings.theme || "dark") === "dark";
+
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
-        <h2 class="flyout-title">extensions</h2>
+        <h2 class="flyout-title">settings</h2>
         <button class="metro-btn subtle" id="btnCloseFlyout">close</button>
       </div>
-      <p style="font-size:14px; color:var(--text-secondary);">
-        Every feature is a self-contained module. Toggle any extension on or off at any time.
-      </p>
-      <div class="flyout-section" id="extCardsContainer"></div>
-      <div class="flyout-section">
-        <div class="flyout-section-title">metro accent color</div>
-        <div class="swatch-grid" id="swatchGrid"></div>
+
+      <div class="sub-pivots" style="gap:24px; margin-bottom:4px;">
+        <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions" style="font-size:22px;">
+          extensions
+        </button>
+        <button class="pivot-tab ${activeTab === "calendars" ? "active" : ""}" data-tab="calendars" style="font-size:22px;">
+          calendars
+        </button>
+        <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:22px;">
+          appearance
+        </button>
       </div>
-      <div class="flyout-section">
-        <div class="flyout-section-title">hub title & demo reset</div>
-        <div class="quick-form">
-          <input class="metro-input" id="hubNameInput" value="${escapeHtml(appState.settings.familyName)}" />
-          <button class="metro-btn accent" id="btnSaveHubName">rename</button>
-        </div>
-        <button class="metro-btn subtle" id="btnResetDemo">reset poc demo data</button>
-      </div>
+
+      <div id="settingsTabBody" style="display:flex; flex-direction:column; gap:18px; flex:1; overflow-y:auto;"></div>
     `;
 
     panel.querySelector("#btnCloseFlyout").addEventListener("click", closeFlyout);
 
-    const extContainer = panel.querySelector("#extCardsContainer");
-    Object.values(appState.extensions).forEach((ext) => {
-      const card = document.createElement("div");
-      card.className = "extension-card";
-      card.style.setProperty("--ext-color", ext.accent);
-      card.innerHTML = `
-        <div>
-          <div style="font-size:20px; font-weight:300; text-transform:lowercase;">
-            ${escapeHtml(ext.name)}
-            ${ext.pinnedColumns ? `<span class="slot-badge" style="margin-left:8px; background:${ext.accent}">pinned cols 1 & 2</span>` : ""}
-          </div>
-          <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
-            ${escapeHtml(ext.description)}
-          </div>
-        </div>
-        <div class="metro-toggle ${ext.enabled ? "on" : ""}" role="switch"></div>
+    panel.querySelectorAll(".pivot-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        uiState.settingsPivot = btn.dataset.tab;
+        renderFlyoutContent();
+      });
+    });
+
+    const tabBody = panel.querySelector("#settingsTabBody");
+
+    if (activeTab === "extensions") {
+      tabBody.innerHTML = `
+        <p style="font-size:13px; color:var(--text-secondary);">
+          Every feature is a self-contained module. Toggle any extension on or off at any time.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:10px;" id="extCardsContainer"></div>
       `;
-      card.querySelector(".metro-toggle").addEventListener("click", () => {
-        ext.enabled = !ext.enabled;
-        saveState(`${ext.name} ${ext.enabled ? "enabled" : "disabled"}`);
+      const extContainer = tabBody.querySelector("#extCardsContainer");
+      Object.values(appState.extensions).forEach((ext) => {
+        const card = document.createElement("div");
+        card.className = "extension-card";
+        card.style.setProperty("--ext-color", ext.accent);
+        card.innerHTML = `
+          <div>
+            <div style="font-size:20px; font-weight:300; text-transform:lowercase;">
+              ${escapeHtml(ext.name)}
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+              ${escapeHtml(ext.description)}
+            </div>
+          </div>
+          <div class="metro-toggle ${ext.enabled ? "on" : ""}" role="switch"></div>
+        `;
+        card.querySelector(".metro-toggle").addEventListener("click", () => {
+          ext.enabled = !ext.enabled;
+          saveState(`${ext.name} ${ext.enabled ? "enabled" : "disabled"}`);
+        });
+        extContainer.appendChild(card);
       });
-      extContainer.appendChild(card);
-    });
-
-    const swatchGrid = panel.querySelector("#swatchGrid");
-    METRO_ACCENTS.forEach((sw) => {
-      const el = document.createElement("div");
-      el.className = `color-swatch ${
-        appState.settings.accentColor.toLowerCase() === sw.hex.toLowerCase() ? "selected" : ""
-      }`;
-      el.style.backgroundColor = sw.hex;
-      el.title = sw.name;
-      el.addEventListener("click", () => {
-        appState.settings.accentColor = sw.hex;
-        applyThemeAndAccent();
-        saveState(`Accent set to Metro ${sw.name}`);
-      });
-      swatchGrid.appendChild(el);
-    });
-
-    panel.querySelector("#btnSaveHubName").addEventListener("click", () => {
-      const val = panel.querySelector("#hubNameInput").value.trim();
-      if (val) {
-        appState.settings.familyName = val.toLowerCase();
-        applyThemeAndAccent();
-        saveState("Updated hub title");
-      }
-    });
-
-    panel.querySelector("#btnResetDemo").addEventListener("click", async () => {
-      const res = await fetch("/api/reset", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        appState = data.state;
-        applyThemeAndAccent();
-        renderAll();
-        showToast("Demo data restored to defaults");
-      }
-    });
-  } else if (mode === "calendars") {
-    panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:baseline;">
-        <h2 class="flyout-title">calendars</h2>
-        <button class="metro-btn subtle" id="btnCloseFlyout">close</button>
-      </div>
-      <p style="font-size:14px; color:var(--text-secondary);">
-        Connected in strict <strong>read-only</strong> mode via Google Calendar (OAuth ` + "`calendar.readonly`" + ` / Secret iCal URL) or Microsoft Outlook (` + "`Calendars.Read`" + ` / ICS link).
-      </p>
-      <div class="flyout-section" id="calSourcesList"></div>
-
-      <div class="flyout-section">
-        <div class="flyout-section-title">connect read-only google / microsoft feed</div>
-        <div class="quick-form" style="flex-direction:column;">
-          <input class="metro-input" id="newCalName" placeholder="calendar label (e.g. Dad's Work, Soccer League)..." />
-          <div style="display:flex; gap:8px;">
-            <select class="metro-input" id="newCalProvider" style="max-width:150px;">
-              <option value="google">Google (Read-Only)</option>
-              <option value="microsoft">Microsoft (Read-Only)</option>
-            </select>
-            <input class="metro-input" id="newCalUrl" placeholder="secret iCal (.ics) URL or account email..." />
-          </div>
-          <button class="metro-btn accent" id="btnConnectCal">+ connect read-only calendar</button>
+    } else if (activeTab === "calendars") {
+      tabBody.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <p style="font-size:13px; color:var(--text-secondary); flex:1; padding-right:10px;">
+            Strictly <strong>read-only</strong> feeds. Manage events on your phone and connect Google or Microsoft iCal (<code>.ics</code>) URLs below.
+          </p>
+          <button class="metro-btn" id="btnSyncNow" title="Refresh all connected read-only .ics feeds">↻ sync feeds</button>
         </div>
-      </div>
+        <div class="flyout-section" id="calSourcesList"></div>
 
-      <div class="flyout-section">
-        <div class="flyout-section-title">simulate incoming calendar event</div>
-        <div class="quick-form" style="flex-direction:column;">
-          <input class="metro-input" id="simEvTitle" placeholder="event title (e.g. Piano Recital)..." />
-          <div style="display:flex; gap:8px;">
-            <select class="metro-input" id="simEvCal">
-              ${appState.calendars.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
-            </select>
-            <select class="metro-input" id="simEvDay">
-              <option value="0">Today</option>
-              <option value="1">Tomorrow</option>
-              <option value="2">In 2 Days</option>
-              <option value="3">In 3 Days</option>
-            </select>
-            <input class="metro-input" type="number" id="simEvHour" min="6" max="22" value="15" style="max-width:80px;" title="Hour (24h)" />
+        <div class="flyout-section">
+          <div class="flyout-section-title">connect read-only google / microsoft feed</div>
+          <div class="quick-form" style="flex-direction:column; margin-bottom:0;">
+            <input class="metro-input" id="newCalName" placeholder="calendar label (e.g. Dad's Work, Soccer League)..." />
+            <div style="display:flex; gap:8px;">
+              <select class="metro-input" id="newCalProvider" style="max-width:165px;">
+                <option value="google">Google (Read-Only)</option>
+                <option value="microsoft">Microsoft (Read-Only)</option>
+              </select>
+              <input class="metro-input" id="newCalUrl" placeholder="read-only iCal (.ics) feed URL..." />
+            </div>
+            <button class="metro-btn accent" id="btnConnectCal">+ connect read-only feed</button>
           </div>
-          <button class="metro-btn" id="btnAddSimEvent">+ add test event to feed</button>
-        </div>
-      </div>
-    `;
-
-    panel.querySelector("#btnCloseFlyout").addEventListener("click", closeFlyout);
-
-    const list = panel.querySelector("#calSourcesList");
-    appState.calendars.forEach((cal) => {
-      const card = document.createElement("div");
-      card.className = "extension-card";
-      card.style.setProperty("--ext-color", cal.color);
-      card.innerHTML = `
-        <div>
-          <div style="font-size:18px; font-weight:400;">
-            ${escapeHtml(cal.name)}
-            <span class="slot-badge" style="margin-left:6px; background:${cal.color}">
-              ${cal.provider} • read-only
-            </span>
-          </div>
-          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
-            ${escapeHtml(cal.account)} • synced ${escapeHtml(cal.lastSync || "just now")}
-          </div>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="metro-toggle ${cal.visible ? "on" : ""}" title="Toggle visibility"></div>
-          <button class="slot-icon-btn" title="Disconnect feed">✕</button>
         </div>
       `;
-      card.querySelector(".metro-toggle").addEventListener("click", () => {
-        cal.visible = !cal.visible;
-        saveState(`${cal.name} visibility toggled`);
-      });
-      card.querySelector("button").addEventListener("click", () => {
-        appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
-        saveState(`Disconnected ${cal.name}`);
-      });
-      list.appendChild(card);
-    });
 
-    panel.querySelector("#btnConnectCal").addEventListener("click", () => {
-      const name = panel.querySelector("#newCalName").value.trim();
-      const provider = panel.querySelector("#newCalProvider").value;
-      const url = panel.querySelector("#newCalUrl").value.trim() || `${provider}-readonly@feed.ics`;
-      if (!name) return;
-      const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
-      const color = palette[appState.calendars.length % palette.length];
-      appState.calendars.push({
-        id: "cal-" + Date.now(),
-        name,
-        provider,
-        color,
-        visible: true,
-        readOnly: true,
-        account: `${url} (Read-Only)`,
-        lastSync: "Just now",
+      tabBody.querySelector("#btnSyncNow").addEventListener("click", async () => {
+        showToast("Syncing read-only calendar feeds...");
+        try {
+          const res = await fetch("/api/sync-calendars", { method: "POST" });
+          const data = await res.json();
+          if (data.ok) {
+            appState = data.state;
+            renderAll();
+            showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
+          } else {
+            showToast(`Sync error: ${data.error}`);
+          }
+        } catch (e) {
+          showToast("Could not reach calendar sync endpoint");
+        }
       });
-      saveState(`Connected read-only ${provider} calendar: ${name}`);
-    });
 
-    panel.querySelector("#btnAddSimEvent").addEventListener("click", () => {
-      const title = panel.querySelector("#simEvTitle").value.trim();
-      if (!title) return;
-      const calendarId = panel.querySelector("#simEvCal").value;
-      const dayOffset = parseInt(panel.querySelector("#simEvDay").value, 10) || 0;
-      const hour = parseInt(panel.querySelector("#simEvHour").value, 10) || 12;
-
-      const start = new Date();
-      start.setDate(start.getDate() + dayOffset);
-      start.setHours(hour, 0, 0, 0);
-      const end = new Date(start);
-      end.setHours(hour + 1, 0, 0, 0);
-
-      appState.events.push({
-        id: "ev-" + Date.now(),
-        calendarId,
-        title,
-        start: start.toISOString(),
-        end: end.toISOString(),
-        location: "Synced via Read-Only Feed",
+      const list = tabBody.querySelector("#calSourcesList");
+      appState.calendars.forEach((cal) => {
+        const card = document.createElement("div");
+        card.className = "extension-card";
+        card.style.setProperty("--ext-color", cal.color);
+        card.innerHTML = `
+          <div>
+            <div style="font-size:18px; font-weight:400;">
+              ${escapeHtml(cal.name)}
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+              ${escapeHtml(cal.provider)} read-only feed • synced ${escapeHtml(cal.lastSync || "just now")}
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="metro-toggle ${cal.visible ? "on" : ""}" title="Toggle visibility"></div>
+            <button class="slot-icon-btn" title="Disconnect feed">✕</button>
+          </div>
+        `;
+        card.querySelector(".metro-toggle").addEventListener("click", () => {
+          cal.visible = !cal.visible;
+          saveState(`${cal.name} visibility toggled`);
+        });
+        card.querySelector("button").addEventListener("click", () => {
+          appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
+          appState.events = appState.events.filter((ev) => ev.calendarId !== cal.id);
+          saveState(`Disconnected ${cal.name}`);
+        });
+        list.appendChild(card);
       });
-      saveState(`Synced "${title}" to calendar`);
-    });
+
+      tabBody.querySelector("#btnConnectCal").addEventListener("click", async () => {
+        const name = tabBody.querySelector("#newCalName").value.trim();
+        const provider = tabBody.querySelector("#newCalProvider").value;
+        const url = tabBody.querySelector("#newCalUrl").value.trim();
+        if (!name || !url) {
+          showToast("Please provide both a calendar label and a read-only .ics URL");
+          return;
+        }
+        const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
+        const color = palette[appState.calendars.length % palette.length];
+        const newCalId = "cal-" + Date.now();
+        appState.calendars.push({
+          id: newCalId,
+          name,
+          provider,
+          color,
+          visible: true,
+          readOnly: true,
+          icsUrl: url,
+          account: `${provider} read-only .ics`,
+          lastSync: "Syncing...",
+        });
+        await saveState(`Connected read-only ${provider} feed: ${name}`);
+
+        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("webcal://")) {
+          try {
+            const res = await fetch("/api/sync-calendars", { method: "POST" });
+            const data = await res.json();
+            if (data.ok) {
+              appState = data.state;
+              renderAll();
+              showToast(`Synced events from ${name}`);
+            }
+          } catch (e) {}
+        }
+      });
+    } else if (activeTab === "appearance") {
+      tabBody.innerHTML = `
+        <div class="flyout-section">
+          <div class="flyout-section-title">theme</div>
+          <div class="extension-card" style="--ext-color: var(--accent);">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">dark mode</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                True pitch-black (#000000) Metro dark canvas vs. crisp light mode.
+              </div>
+            </div>
+            <div class="metro-toggle ${isDark ? "on" : ""}" id="toggleThemeSwitch" role="switch"></div>
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">metro accent color</div>
+          <div class="swatch-grid" id="swatchGrid"></div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">local weather zip code</div>
+          <div class="quick-form" style="margin-bottom:0;">
+            <input class="metro-input" id="zipCodeInput" value="${escapeHtml(appState.settings.zipCode || "98052")}" placeholder="zip code (e.g. 98052)..." />
+            <button class="metro-btn accent" id="btnSaveZip">update weather</button>
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">hub title</div>
+          <div class="quick-form" style="margin-bottom:0;">
+            <input class="metro-input" id="hubNameInput" value="${escapeHtml(appState.settings.familyName)}" placeholder="hub title..." />
+            <button class="metro-btn accent" id="btnSaveHubName">rename</button>
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">system</div>
+          <button class="metro-btn subtle" id="btnResetDemo">reset poc demo data</button>
+        </div>
+      `;
+
+      tabBody.querySelector("#toggleThemeSwitch").addEventListener("click", () => {
+        appState.settings.theme = isDark ? "light" : "dark";
+        applyThemeAndAccent();
+        saveState(`Switched to Metro ${appState.settings.theme} mode`);
+      });
+
+      const swatchGrid = tabBody.querySelector("#swatchGrid");
+      METRO_ACCENTS.forEach((sw) => {
+        const el = document.createElement("div");
+        el.className = `color-swatch ${
+          appState.settings.accentColor.toLowerCase() === sw.hex.toLowerCase() ? "selected" : ""
+        }`;
+        el.style.backgroundColor = sw.hex;
+        el.title = sw.name;
+        el.addEventListener("click", () => {
+          appState.settings.accentColor = sw.hex;
+          applyThemeAndAccent();
+          saveState(`Accent set to Metro ${sw.name}`);
+        });
+        swatchGrid.appendChild(el);
+      });
+
+      tabBody.querySelector("#btnSaveZip").addEventListener("click", async () => {
+        const val = tabBody.querySelector("#zipCodeInput").value.trim();
+        if (val) {
+          appState.settings.zipCode = val;
+          await saveState(`Weather ZIP updated to ${val}`);
+          refreshWeather();
+        }
+      });
+
+      tabBody.querySelector("#btnSaveHubName").addEventListener("click", () => {
+        const val = tabBody.querySelector("#hubNameInput").value.trim();
+        if (val) {
+          appState.settings.familyName = val.toLowerCase();
+          applyThemeAndAccent();
+          saveState("Updated hub title");
+        }
+      });
+
+      tabBody.querySelector("#btnResetDemo").addEventListener("click", async () => {
+        const res = await fetch("/api/reset", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          appState = data.state;
+          applyThemeAndAccent();
+          renderAll();
+          refreshWeather();
+          showToast("Demo data restored to defaults");
+        }
+      });
+    }
   } else if (mode === "add-column" || mode === "fill-half") {
     const isHalfFill = mode === "fill-half";
     const availableExts = Object.values(appState.extensions).filter(
@@ -1249,18 +1588,12 @@ function escapeHtml(str) {
 document.addEventListener("DOMContentLoaded", () => {
   updateClock();
   setInterval(updateClock, 15000);
+  setInterval(refreshWeather, 15 * 60 * 1000);
 
-  const btnAddCol = document.getElementById("btnAddColumn");
-  if (btnAddCol) btnAddCol.addEventListener("click", () => openFlyout("add-column"));
-  document.getElementById("btnCalendars").addEventListener("click", () => openFlyout("calendars"));
-  document.getElementById("btnExtensions").addEventListener("click", () => openFlyout("extensions"));
-
-  document.getElementById("btnTheme").addEventListener("click", () => {
-    if (!appState) return;
-    appState.settings.theme = appState.settings.theme === "dark" ? "light" : "dark";
-    applyThemeAndAccent();
-    saveState(`Switched to Metro ${appState.settings.theme} mode`);
-  });
+  const headerTrigger = document.getElementById("headerSettingsTrigger");
+  if (headerTrigger) {
+    headerTrigger.addEventListener("click", () => openFlyout("settings"));
+  }
 
   document.getElementById("flyoutBackdrop").addEventListener("click", (e) => {
     if (e.target.id === "flyoutBackdrop") closeFlyout();
