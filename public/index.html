@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>family hub — metro panorama</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- TOP PANORAMA HEADER -->
+  <header class="panorama-header">
+    <div class="panorama-brand">
+      <h1 class="panorama-title" id="hubTitle">family hub</h1>
+      <span class="panorama-subtitle" id="hubSubtitle">panorama</span>
+    </div>
+
+    <div class="panorama-status">
+      <div>
+        <span class="clock-time" id="clockTime">10:45</span>
+        <span class="clock-date" id="clockDate">tuesday, nov 3</span>
+      </div>
+      <div class="header-actions">
+        <button class="metro-btn" id="btnCalendars" title="Connect & toggle read-only Google & Microsoft calendars">
+          calendars
+        </button>
+        <button class="metro-btn" id="btnExtensions" title="Toggle modular extensions on/off">
+          extensions
+        </button>
+        <button class="metro-circle-btn" id="btnTheme" title="Toggle Dark / Light Metro Theme">
+          ◐
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HORIZONTAL METRO PANORAMA STAGE -->
+  <main class="panorama-viewport" id="panoramaStage">
+    <!-- Columns are rendered dynamically by the Extension Host -->
+  </main>
+
+  <!-- FLYOUT DRAWER FOR EXTENSIONS, CALENDARS, AND ADDING COLUMNS -->
+  <div class="flyout-backdrop" id="flyoutBackdrop">
+    <aside class="metro-flyout" id="flyoutPanel">
+      <!-- Dynamic flyout content -->
+    </aside>
+  </div>
+
+  <!-- METRO NOTIFICATION TOAST -->
+  <div class="toast-banner" id="toastBanner"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

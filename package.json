@@ -1,0 +1,9 @@
+{
+  "name": "metro-family-hub",
+  "version": "0.1.0",
+  "description": "Microsoft Metro UI Family Touchscreen Calendar, Meal Planner & Modular Extension Hub",
+  "scripts": {
+    "start": "python3 server.py",
+    "dev": "python3 server.py"
+  }
+}
