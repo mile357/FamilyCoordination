@@ -2,19 +2,14 @@
  * Metro Family Hub — Modular Extension Host & Panorama Engine
  *
  * Implements:
- * 1. Self-contained Extension Registry (`registerExtension`) where every feature
- *    (Calendar, Meal Planner, Grocery List, Chores, Notes, etc.) can be toggled on/off.
- * 2. Pinned Column Rule: When the `calendar` extension is enabled, Column 1 is always
- *    Today's Hour-by-Hour view and Column 2 is always the Next 7 Days Agenda.
- * 3. Strict Column Sizing: Extensions placed in user columns occupy either a FULL
- *    column (`size: "full"`) or HALF column (`size: "half"`).
- * 4. Authentic Metro `•••` Ellipsis Command Drawer below each widget's title:
- *    - Hides all chrome and `+ add` forms when idle ("Content, Not Chrome").
- *    - Tapping `•••` reveals circular Metro command icons (`+` add, `↑/↓` full/half,
- *      `i` details, `✕` remove) directly below the title.
- * 5. Meal <-> Grocery Automatic Linking: Adding a meal from the catalog (or creating
- *    a new meal with linked grocery items) automatically adds all linked ingredients
- *    to the Grocery List.
+ * 1. Auto-Discovered Extension Folder (`public/extensions/*.js`):
+ *    - Any `.js` file added to `public/extensions/` is automatically discovered via
+ *      `GET /api/extensions` and dynamically imported at startup.
+ * 2. Strict Column Sizing: Extensions occupy a HALF column (`size: "half"`),
+ *    FULL column (`size: "full"`), or 2-COLUMN span (`size: "double"`).
+ * 3. Authentic Metro `•••` Ellipsis Command Drawer below each widget's title.
+ * 4. Dedicated "Customize Layout" Wireframe Mode for moving, merging, splitting,
+ *    resizing, adding, and removing widgets and columns.
  */
 
 const METRO_ACCENTS = [
@@ -28,13 +23,150 @@ const METRO_ACCENTS = [
   { name: "Amber", hex: "#F0A30A" },
 ];
 
+const CORE_EXTENSION_FILES = [
+  "calendar.js",
+  "meals.js",
+  "groceries.js",
+  "chores.js",
+  "notes.js",
+];
+
 // ============================================================================
-// EXTENSION REGISTRY (Self-contained modular plugins)
+// EXTENSION REGISTRY & AUTO-DISCOVERY LOADER (`public/extensions/*.js`)
 // ============================================================================
 const ExtensionRegistry = new Map();
 
-function registerExtension(definition) {
+export function registerExtension(definition) {
+  if (!definition || !definition.id) return;
   ExtensionRegistry.set(definition.id, definition);
+}
+
+// Expose globally as well in case an extension script calls window.registerExtension(...)
+window.registerExtension = registerExtension;
+
+async function discoverAndLoadExtensions() {
+  let files = [...CORE_EXTENSION_FILES];
+  try {
+    const res = await fetch("/api/extensions");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.files) && data.files.length > 0) {
+        files = data.files;
+      }
+    }
+  } catch (e) {
+    // Fallback to CORE_EXTENSION_FILES if server hasn't restarted yet
+  }
+
+  for (const file of files) {
+    try {
+      const mod = await import(`/extensions/${file}?v=20`);
+      const def = mod.default || mod.extension;
+      if (def && def.id) {
+        registerExtension(def);
+      }
+    } catch (err) {
+      console.error(`Failed to load extension /extensions/${file}:`, err);
+    }
+  }
+}
+
+function syncExtensionsWithAppState() {
+  if (!appState) return;
+  if (!appState.extensions) appState.extensions = {};
+
+  for (const [id, plugin] of ExtensionRegistry.entries()) {
+    // Automatically register any newly added extension in appState.extensions
+    if (!appState.extensions[id]) {
+      appState.extensions[id] = {
+        id: plugin.id,
+        name: plugin.name || plugin.id,
+        description: plugin.description || plugin.infoText || "",
+        enabled: plugin.defaultEnabled !== false,
+        defaultSize: plugin.fixedSize || plugin.defaultSize || "half",
+        accent: plugin.accent || "#00ABA9",
+      };
+    }
+
+    // Initialize any defaultState keys declared by the extension
+    if (plugin.defaultState && typeof plugin.defaultState === "object") {
+      for (const [key, defaultVal] of Object.entries(plugin.defaultState)) {
+        if (appState[key] === undefined) {
+          appState[key] = JSON.parse(JSON.stringify(defaultVal));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Check whether at least one currently enabled extension listens for `eventName`.
+ */
+function canHandleExtensionEvent(eventName) {
+  if (!appState || !appState.extensions) return false;
+  for (const [id, plugin] of ExtensionRegistry.entries()) {
+    const extMeta = appState.extensions[id];
+    if (extMeta && extMeta.enabled && plugin.events && typeof plugin.events[eventName] === "function") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Broadcast a standardized event/intent to all currently enabled extensions that
+ * register a handler under `events[eventName]`. Returns an array of results.
+ */
+function emitExtensionEvent(eventName, payload = {}) {
+  if (!appState || !appState.extensions) return [];
+  const results = [];
+  for (const [id, plugin] of ExtensionRegistry.entries()) {
+    const extMeta = appState.extensions[id];
+    if (extMeta && extMeta.enabled && plugin.events && typeof plugin.events[eventName] === "function") {
+      try {
+        const res = plugin.events[eventName](payload, {
+          appState,
+          uiState,
+          saveState,
+          renderAll,
+          showToast,
+          escapeHtml,
+          formatTimeShort,
+          emit: emitExtensionEvent,
+          canHandle: canHandleExtensionEvent,
+        });
+        results.push({ extensionId: id, result: res });
+      } catch (err) {
+        console.error(`Error in extension "${id}" handling event "${eventName}":`, err);
+      }
+    }
+  }
+  return results;
+}
+
+function createExtensionContext(slotConfig, colConfig) {
+  const closeDrawer = () => {
+    uiState.slotDrawers[slotConfig.id] = { open: false, mode: null };
+  };
+  return {
+    id: slotConfig.id,
+    size: slotConfig.size,
+    slot: slotConfig,
+    column: colConfig,
+    appState,
+    uiState,
+    closeDrawer,
+    saveState,
+    renderAll,
+    showToast,
+    escapeHtml,
+    formatTimeShort,
+    emit: emitExtensionEvent,
+    canHandle: canHandleExtensionEvent,
+    replaceAppState(newState) {
+      appState = newState;
+    },
+  };
 }
 
 // Local UI state (pivots, active modals, per-slot Metro command drawer state)
@@ -74,6 +206,8 @@ let appState = null;
 // API & STATE PERSISTENCE (SQLite Backend + LocalStorage Fallback)
 // ============================================================================
 async function loadState() {
+  await discoverAndLoadExtensions();
+
   try {
     const res = await fetch("/api/state");
     if (!res.ok) throw new Error("API error");
@@ -84,6 +218,7 @@ async function loadState() {
       appState = JSON.parse(cached);
     }
   }
+
   // Migrate older state so Calendar is a standard 2-column ("double") widget in appState.columns
   if (appState && Array.isArray(appState.columns)) {
     const hasCalSlot = appState.columns.some((c) =>
@@ -100,6 +235,8 @@ async function loadState() {
       appState.extensions.calendar.defaultSize = "double";
     }
   }
+
+  syncExtensionsWithAppState();
   applyThemeAndAccent();
   renderAll();
   refreshWeather();
@@ -197,21 +334,18 @@ function renderWeatherLine(el, wx, zip) {
   let tempScaleHtml = "";
 
   if (curF <= minF) {
-    // Current temp is at the daily low: show large current temp on the far left
     tempScaleHtml = `
       <span class="wx-current">${curF}°</span>
       <span class="wx-bar" style="width:${totalBarPx}px"></span>
       <span class="wx-bound">${maxF}°</span>
     `;
   } else if (curF >= maxF) {
-    // Current temp is at the daily high: show large current temp on the far right
     tempScaleHtml = `
       <span class="wx-bound">${minF}°</span>
       <span class="wx-bar" style="width:${totalBarPx}px"></span>
       <span class="wx-current">${curF}°</span>
     `;
   } else {
-    // Strictly linear position between low and high: (cur - min) / (max - min)
     const range = Math.max(maxF - minF, 1);
     const ratio = (curF - minF) / range;
     const leftBarPx = Math.max(6, Math.round(totalBarPx * ratio));
@@ -264,723 +398,6 @@ function applyThemeAndAccent() {
   const titleEl = document.getElementById("hubTitle");
   if (titleEl) titleEl.textContent = appState.settings.familyName || "family hub";
 }
-
-// ============================================================================
-// EXTENSION 1: SHARED CALENDAR (2-Column Widget: Today Hourly + Next 7 Days Agenda)
-// ============================================================================
-registerExtension({
-  id: "calendar",
-  name: "shared calendar",
-  accent: "#00ABA9",
-  canAddToCustomColumn: true,
-  fixedSize: "double", // Automatically spans 2 columns (Today + Next 7 Days)
-  customHeaderTitles: ["today", "next 7 days"],
-  infoText: "Read-only 2-column view of Today (hour-by-hour) and the Next 7 Days. Toggle calendar feeds or connect a new read-only .ics feed below.",
-  renderAddForm(slotConfig) {
-    const wrap = document.createElement("div");
-    wrap.style.display = "flex";
-    wrap.style.flexDirection = "column";
-    wrap.style.gap = "12px";
-
-    wrap.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-          <div class="calendar-filter-strip" style="padding:0; flex:1;" id="calStrip_${slotConfig.id}"></div>
-          <button class="slot-icon-btn" id="btnInlineSyncCal_${slotConfig.id}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
-        </div>
-
-        <div class="quick-form" style="margin-bottom:0; width:100%;">
-          <input class="metro-input" id="newCalName_${slotConfig.id}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:220px;" />
-          <select class="metro-input" id="newCalProvider_${slotConfig.id}" style="max-width:130px;">
-            <option value="google">Google</option>
-            <option value="microsoft">Microsoft</option>
-          </select>
-          <input class="metro-input" id="newCalUrl_${slotConfig.id}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
-          <button class="metro-btn accent" id="btnConnectCal_${slotConfig.id}">+ connect</button>
-        </div>
-      </div>
-    `;
-
-    // Render interactive calendar chips with visibility toggle + disconnect (✕) button
-    const strip = wrap.querySelector(`#calStrip_${slotConfig.id}`);
-    appState.calendars.forEach((cal) => {
-      const chip = document.createElement("div");
-      chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
-      chip.style.setProperty("--cal-color", cal.color);
-      chip.innerHTML = `
-        <span class="chip-toggle-area" style="display:inline-flex; align-items:center; gap:6px;">
-          <strong>${cal.provider === "google" ? "G" : "M"}</strong>
-          <span>${escapeHtml(cal.name)}</span>
-        </span>
-        <span class="chip-remove-btn" title="Disconnect feed" style="margin-left:6px; opacity:0.6; font-size:11px;">✕</span>
-      `;
-      chip.querySelector(".chip-toggle-area").addEventListener("click", () => {
-        cal.visible = !cal.visible;
-        saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
-      });
-      chip.querySelector(".chip-remove-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
-        appState.events = appState.events.filter((ev) => ev.calendarId !== cal.id);
-        saveState(`Disconnected ${cal.name}`);
-      });
-      strip.appendChild(chip);
-    });
-
-    wrap.querySelector(`#btnInlineSyncCal_${slotConfig.id}`).addEventListener("click", async () => {
-      showToast("Syncing read-only calendar feeds...");
-      try {
-        const res = await fetch("/api/sync-calendars", { method: "POST" });
-        const data = await res.json();
-        if (data.ok) {
-          appState = data.state;
-          renderAll();
-          showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
-        }
-      } catch (e) {
-        showToast("Sync complete");
-      }
-    });
-
-    wrap.querySelector(`#btnConnectCal_${slotConfig.id}`).addEventListener("click", async () => {
-      const name = wrap.querySelector(`#newCalName_${slotConfig.id}`).value.trim();
-      const provider = wrap.querySelector(`#newCalProvider_${slotConfig.id}`).value;
-      const url = wrap.querySelector(`#newCalUrl_${slotConfig.id}`).value.trim();
-      if (!name || !url) {
-        showToast("Please enter both a label and a read-only .ics URL");
-        return;
-      }
-      const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
-      const color = palette[appState.calendars.length % palette.length];
-      const newCalId = "cal-" + Date.now();
-      appState.calendars.push({
-        id: newCalId,
-        name,
-        provider,
-        color,
-        visible: true,
-        readOnly: true,
-        icsUrl: url,
-        account: `${provider} read-only .ics`,
-        lastSync: "Just now",
-      });
-      await saveState(`Connected read-only ${provider} feed: ${name}`);
-
-      if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("webcal://")) {
-        try {
-          const res = await fetch("/api/sync-calendars", { method: "POST" });
-          const data = await res.json();
-          if (data.ok) {
-            appState = data.state;
-            renderAll();
-            showToast(`Synced events from ${name}`);
-          }
-        } catch (e) {}
-      }
-    });
-
-    return wrap;
-  },
-  renderSlot() {
-    const visibleCalIds = new Set(
-      appState.calendars.filter((c) => c.visible).map((c) => c.id)
-    );
-    const calMap = new Map(appState.calendars.map((c) => [c.id, c]));
-
-    const grid = document.createElement("div");
-    grid.className = "double-split-grid";
-
-    // LEFT PANE: Today's Hour-by-Hour Timeline
-    const leftPane = document.createElement("div");
-    leftPane.className = "double-pane";
-    const timeline = document.createElement("div");
-    timeline.className = "hour-timeline";
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const todayEvents = appState.events.filter((ev) => {
-      if (!visibleCalIds.has(ev.calendarId)) return false;
-      const d = new Date(ev.start);
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    });
-
-    for (let hour = 6; hour <= 22; hour++) {
-      const row = document.createElement("div");
-      row.className = `hour-row ${hour === currentHour ? "current-hour" : ""}`;
-      const label =
-        hour === 0
-          ? "12 am"
-          : hour < 12
-          ? `${hour} am`
-          : hour === 12
-          ? "12 pm"
-          : `${hour - 12} pm`;
-
-      const matching = todayEvents.filter((ev) => new Date(ev.start).getHours() === hour);
-      const eventsHtml = matching
-        .map((ev) => {
-          const cal = calMap.get(ev.calendarId);
-          const color = cal ? cal.color : "#00ABA9";
-          return `
-            <div class="metro-event-tile" style="--ev-color: ${color}">
-              <div class="ev-time">${formatTimeShort(new Date(ev.start))} – ${formatTimeShort(new Date(ev.end))}</div>
-              <div class="ev-title">${escapeHtml(ev.title)}</div>
-              <div class="ev-meta">
-                <span>${escapeHtml(ev.location || "")}</span>
-                <span>${escapeHtml(cal ? cal.name : "")}</span>
-              </div>
-            </div>
-          `;
-        })
-        .join("");
-
-      row.innerHTML = `
-        <div class="hour-label">${label}</div>
-        <div class="hour-events">${eventsHtml}</div>
-      `;
-      timeline.appendChild(row);
-    }
-    leftPane.appendChild(timeline);
-
-    // RIGHT PANE: Next 7 Days Agenda
-    const rightPane = document.createElement("div");
-    rightPane.className = "double-pane";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let offset = 0; offset < 7; offset++) {
-      const dayDate = new Date(today);
-      dayDate.setDate(today.getDate() + offset);
-
-      const dayName =
-        offset === 0
-          ? "today"
-          : offset === 1
-          ? "tomorrow"
-          : dayDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-
-      const dateLabel = dayDate
-        .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        .toLowerCase();
-
-      const dayEvents = appState.events
-        .filter((ev) => {
-          if (!visibleCalIds.has(ev.calendarId)) return false;
-          const d = new Date(ev.start);
-          return (
-            d.getFullYear() === dayDate.getFullYear() &&
-            d.getMonth() === dayDate.getMonth() &&
-            d.getDate() === dayDate.getDate()
-          );
-        })
-        .sort((a, b) => new Date(a.start) - new Date(b.start));
-
-      const group = document.createElement("div");
-      group.className = "agenda-day-group";
-
-      const eventsHtml =
-        dayEvents.length === 0
-          ? `<div class="agenda-empty">no scheduled events</div>`
-          : dayEvents
-              .map((ev) => {
-                const cal = calMap.get(ev.calendarId);
-                const color = cal ? cal.color : "#1BA1E2";
-                return `
-                  <div class="metro-event-tile" style="--ev-color: ${color}; margin-bottom: 6px;">
-                    <div class="ev-time">${formatTimeShort(new Date(ev.start))} – ${formatTimeShort(new Date(ev.end))}</div>
-                    <div class="ev-title">${escapeHtml(ev.title)}</div>
-                    <div class="ev-meta">
-                      <span>${escapeHtml(ev.location || "")}</span>
-                      <span>${escapeHtml(cal ? cal.name : "")}</span>
-                    </div>
-                  </div>
-                `;
-              })
-              .join("");
-
-      group.innerHTML = `
-        <div class="agenda-day-header">
-          <span class="agenda-day-name ${offset === 0 ? "is-today" : ""}">${dayName}</span>
-          <span class="agenda-day-date">${dateLabel}</span>
-        </div>
-        <div>${eventsHtml}</div>
-      `;
-      rightPane.appendChild(group);
-    }
-
-    grid.appendChild(leftPane);
-    grid.appendChild(rightPane);
-    return grid;
-  },
-});
-
-// ============================================================================
-// EXTENSION 2: MEAL PLANNER (With Linked Grocery Auto-Addition)
-// ============================================================================
-registerExtension({
-  id: "meals",
-  name: "meal planner",
-  accent: "#A20025",
-  canAddToCustomColumn: true,
-  hasAddAction: true,
-  infoText: "Add meals to your family plan. Any grocery items linked to a meal are automatically queued onto your Grocery List whenever you add that meal.",
-  renderAddForm(slotConfig, onComplete) {
-    const formWrap = document.createElement("div");
-    formWrap.innerHTML = `
-      <div class="quick-form" style="margin-bottom:8px;">
-        <input class="metro-input" id="mealNameInput_${slotConfig.id}" placeholder="meal name (e.g. Street Tacos)..." list="catalogSuggestions_${slotConfig.id}" />
-        <datalist id="catalogSuggestions_${slotConfig.id}">
-          ${appState.mealCatalog.map((m) => `<option value="${escapeHtml(m.name)}"></option>`).join("")}
-        </datalist>
-        <button class="metro-btn accent" style="--accent:#A20025" id="btnQuickAddMeal_${slotConfig.id}">add</button>
-      </div>
-      <div class="quick-form" style="margin-bottom:0;">
-        <input class="metro-input" id="mealIngInput_${slotConfig.id}" placeholder="linked groceries (comma-separated, auto-fills if in catalog)..." />
-      </div>
-    `;
-
-    const nameInput = formWrap.querySelector(`#mealNameInput_${slotConfig.id}`);
-    const ingInput = formWrap.querySelector(`#mealIngInput_${slotConfig.id}`);
-
-    nameInput.addEventListener("input", () => {
-      const match = appState.mealCatalog.find(
-        (m) => m.name.toLowerCase() === nameInput.value.trim().toLowerCase()
-      );
-      if (match) {
-        ingInput.value = match.LinkedIngredients.join(", ");
-      }
-    });
-
-    const handleAddMeal = () => {
-      const rawName = nameInput.value.trim();
-      if (!rawName) return;
-      const rawIngs = ingInput.value
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      onComplete();
-      addMealAndAutoGroceries(rawName, rawIngs);
-    };
-
-    formWrap.querySelector(`#btnQuickAddMeal_${slotConfig.id}`).addEventListener("click", handleAddMeal);
-    nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleAddMeal();
-    });
-    ingInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleAddMeal();
-    });
-
-    setTimeout(() => nameInput.focus(), 20);
-    return formWrap;
-  },
-  renderSlot(slotConfig) {
-    const container = document.createElement("div");
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.height = "100%";
-
-    const isCatalog = uiState.mealsPivot === "catalog";
-
-    container.innerHTML = `
-      <div class="sub-pivots">
-        <button class="pivot-tab ${!isCatalog ? "active" : ""}" data-pivot="plan">
-          this week (${appState.activeMeals.length})
-        </button>
-        <button class="pivot-tab ${isCatalog ? "active" : ""}" data-pivot="catalog">
-          catalog (${appState.mealCatalog.length})
-        </button>
-      </div>
-      <div id="mealSubContent" style="flex:1; overflow-y:auto;"></div>
-    `;
-
-    container.querySelectorAll(".pivot-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        uiState.mealsPivot = btn.dataset.pivot;
-        renderAll();
-      });
-    });
-
-    const sub = container.querySelector("#mealSubContent");
-
-    if (!isCatalog) {
-      const list = document.createElement("div");
-      list.className = "metro-list";
-
-      appState.activeMeals.forEach((meal) => {
-        const card = document.createElement("div");
-        card.className = "meal-card";
-        card.innerHTML = `
-          <div class="meal-card-top">
-            <div>
-              <div class="meal-name">${escapeHtml(meal.name)}</div>
-              <div class="item-secondary">${(meal.ingredients || []).length} linked grocery items</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              <button class="slot-icon-btn" data-action="readd-groceries" title="Re-send all ingredients to grocery list">+ groceries</button>
-              <button class="slot-icon-btn" data-action="remove-meal" title="Remove from active meals">✕</button>
-            </div>
-          </div>
-          <div class="ingredient-tags">
-            ${(meal.ingredients || [])
-              .map((ing) => `<span class="ing-tag">${escapeHtml(ing)}</span>`)
-              .join("")}
-          </div>
-        `;
-
-        card.querySelector('[data-action="readd-groceries"]').addEventListener("click", () => {
-          const addedCount = pushIngredientsToGroceries(meal.name, meal.ingredients || []);
-          saveState(`Added ${addedCount} items for "${meal.name}" to Groceries`);
-        });
-
-        card.querySelector('[data-action="remove-meal"]').addEventListener("click", () => {
-          appState.activeMeals = appState.activeMeals.filter((m) => m.id !== meal.id);
-          saveState(`Removed "${meal.name}" from meal list`);
-        });
-
-        list.appendChild(card);
-      });
-
-      sub.appendChild(list);
-    } else {
-      const list = document.createElement("div");
-      list.className = "metro-list";
-
-      appState.mealCatalog.forEach((catMeal) => {
-        const card = document.createElement("div");
-        card.className = "meal-card";
-        card.innerHTML = `
-          <div class="meal-card-top">
-            <div class="meal-name">${escapeHtml(catMeal.name)}</div>
-            <button class="metro-btn accent" style="--accent:#A20025; padding:4px 10px; font-size:12px;">
-              + plan & groceries
-            </button>
-          </div>
-          <div class="ingredient-tags">
-            ${catMeal.LinkedIngredients.map((ing) => `<span class="ing-tag">${escapeHtml(ing)}</span>`).join("")}
-          </div>
-        `;
-
-        card.querySelector("button").addEventListener("click", () => {
-          addMealAndAutoGroceries(catMeal.name, catMeal.LinkedIngredients);
-          uiState.mealsPivot = "plan";
-        });
-
-        list.appendChild(card);
-      });
-
-      sub.appendChild(list);
-    }
-
-    return container;
-  },
-});
-
-function pushIngredientsToGroceries(mealName, ingredients) {
-  let added = 0;
-  ingredients.forEach((ingName) => {
-    const exists = appState.groceries.find(
-      (g) => g.name.toLowerCase() === ingName.toLowerCase() && !g.checked
-    );
-    if (!exists) {
-      appState.groceries.unshift({
-        id: "groc-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-        name: ingName,
-        checked: false,
-        fromMeal: mealName,
-      });
-      added++;
-    }
-  });
-  return added;
-}
-
-function addMealAndAutoGroceries(mealName, ingredientsList) {
-  let catalogEntry = appState.mealCatalog.find(
-    (m) => m.name.toLowerCase() === mealName.toLowerCase()
-  );
-
-  const finalIngredients =
-    ingredientsList && ingredientsList.length > 0
-      ? ingredientsList
-      : catalogEntry
-      ? catalogEntry.LinkedIngredients
-      : [];
-
-  if (catalogEntry) {
-    if (finalIngredients.length > 0) {
-      catalogEntry.LinkedIngredients = finalIngredients;
-    }
-  } else {
-    catalogEntry = {
-      id: "meal-cat-" + Date.now(),
-      name: mealName,
-      LinkedIngredients: finalIngredients,
-    };
-    appState.mealCatalog.unshift(catalogEntry);
-  }
-
-  appState.activeMeals.unshift({
-    id: "active-meal-" + Date.now(),
-    catalogId: catalogEntry.id,
-    name: mealName,
-    ingredients: finalIngredients,
-  });
-
-  const addedCount = pushIngredientsToGroceries(mealName, finalIngredients);
-  saveState(
-    finalIngredients.length > 0
-      ? `Added "${mealName}" + ${addedCount} linked grocery items`
-      : `Added "${mealName}" to meal plan`
-  );
-}
-
-// ============================================================================
-// EXTENSION 3: GROCERY LIST
-// ============================================================================
-registerExtension({
-  id: "groceries",
-  name: "grocery list",
-  accent: "#60A917",
-  canAddToCustomColumn: true,
-  hasAddAction: true,
-  infoText: "Touch any item to check it off. Items added automatically from Meal Planner show their source meal underneath.",
-  renderAddForm(slotConfig, onComplete) {
-    const checkedCount = appState.groceries.filter((g) => g.checked).length;
-    const wrap = document.createElement("div");
-    wrap.className = "quick-form";
-    wrap.style.marginBottom = "0";
-    wrap.innerHTML = `
-      <input class="metro-input" id="grocInput_${slotConfig.id}" placeholder="add grocery item..." />
-      <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slotConfig.id}">add</button>
-      ${
-        checkedCount > 0
-          ? `<button class="metro-btn subtle" id="btnClearChecked_${slotConfig.id}">clear (${checkedCount})</button>`
-          : ""
-      }
-    `;
-    const input = wrap.querySelector(`#grocInput_${slotConfig.id}`);
-    const addGroc = () => {
-      const val = input.value.trim();
-      if (!val) return;
-      appState.groceries.unshift({
-        id: "groc-" + Date.now(),
-        name: val,
-        checked: false,
-        fromMeal: null,
-      });
-      onComplete();
-      saveState(`Added "${val}" to groceries`);
-    };
-    wrap.querySelector(`#btnAddGroc_${slotConfig.id}`).addEventListener("click", addGroc);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addGroc();
-    });
-    const clearBtn = wrap.querySelector(`#btnClearChecked_${slotConfig.id}`);
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        appState.groceries = appState.groceries.filter((g) => !g.checked);
-        onComplete();
-        saveState("Cleared checked grocery items");
-      });
-    }
-    setTimeout(() => input.focus(), 20);
-    return wrap;
-  },
-  renderSlot(slotConfig) {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `<div class="metro-list" id="grocList_${slotConfig.id}"></div>`;
-
-    const listEl = wrap.querySelector(`#grocList_${slotConfig.id}`);
-    const sorted = [...appState.groceries].sort((a, b) => Number(a.checked) - Number(b.checked));
-
-    sorted.forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "metro-list-item";
-      row.style.setProperty("--slot-accent", "#60A917");
-      row.innerHTML = `
-        <div class="check-row">
-          <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>
-          <div class="item-text-wrap">
-            <span class="item-primary ${item.checked ? "checked-text" : ""}">${escapeHtml(item.name)}</span>
-            ${
-              item.fromMeal
-                ? `<span class="item-secondary">from meal: ${escapeHtml(item.fromMeal)}</span>`
-                : ""
-            }
-          </div>
-        </div>
-        <button class="slot-icon-btn" title="Delete">✕</button>
-      `;
-
-      row.querySelector(".check-row").addEventListener("click", () => {
-        item.checked = !item.checked;
-        saveState();
-      });
-
-      row.querySelector("button").addEventListener("click", () => {
-        appState.groceries = appState.groceries.filter((g) => g.id !== item.id);
-        saveState();
-      });
-
-      listEl.appendChild(row);
-    });
-
-    return wrap;
-  },
-});
-
-// ============================================================================
-// EXTENSION 4: DAILY CHORES (Sample Plug-in Extension)
-// ============================================================================
-registerExtension({
-  id: "chores",
-  name: "daily chores",
-  accent: "#FA6800",
-  canAddToCustomColumn: true,
-  hasAddAction: true,
-  infoText: "Assign daily family responsibilities. Tip: use 'Name: Task' (e.g. 'Leo: Walk dog') when adding a chore.",
-  renderAddForm(slotConfig, onComplete) {
-    const wrap = document.createElement("div");
-    wrap.className = "quick-form";
-    wrap.style.marginBottom = "0";
-    wrap.innerHTML = `
-      <input class="metro-input" id="choreInput_${slotConfig.id}" placeholder="new chore (e.g. Leo: Feed dog)..." />
-      <button class="metro-btn accent" style="--accent:#FA6800" id="btnAddChore_${slotConfig.id}">add</button>
-    `;
-    const input = wrap.querySelector(`#choreInput_${slotConfig.id}`);
-    const addChore = () => {
-      const raw = input.value.trim();
-      if (!raw) return;
-      let assignee = "Family";
-      let title = raw;
-      if (raw.includes(":")) {
-        const parts = raw.split(":");
-        assignee = parts[0].trim();
-        title = parts.slice(1).join(":").trim();
-      }
-      appState.chores.unshift({
-        id: "chore-" + Date.now(),
-        title,
-        assignee,
-        done: false,
-      });
-      onComplete();
-      saveState("Added chore");
-    };
-    wrap.querySelector(`#btnAddChore_${slotConfig.id}`).addEventListener("click", addChore);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addChore();
-    });
-    setTimeout(() => input.focus(), 20);
-    return wrap;
-  },
-  renderSlot(slotConfig) {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `<div class="metro-list" id="choreList_${slotConfig.id}"></div>`;
-
-    const listEl = wrap.querySelector(`#choreList_${slotConfig.id}`);
-    appState.chores.forEach((c) => {
-      const row = document.createElement("div");
-      row.className = "metro-list-item";
-      row.style.setProperty("--slot-accent", "#FA6800");
-      row.innerHTML = `
-        <div class="check-row">
-          <div class="metro-checkbox ${c.done ? "checked" : ""}">${c.done ? "✓" : ""}</div>
-          <div class="item-text-wrap">
-            <span class="item-primary ${c.done ? "checked-text" : ""}">${escapeHtml(c.title)}</span>
-            <span class="item-secondary">assigned to: ${escapeHtml(c.assignee)}</span>
-          </div>
-        </div>
-        <button class="slot-icon-btn">✕</button>
-      `;
-      row.querySelector(".check-row").addEventListener("click", () => {
-        c.done = !c.done;
-        saveState();
-      });
-      row.querySelector("button").addEventListener("click", () => {
-        appState.chores = appState.chores.filter((x) => x.id !== c.id);
-        saveState();
-      });
-      listEl.appendChild(row);
-    });
-
-    return wrap;
-  },
-});
-
-// ============================================================================
-// EXTENSION 5: FAMILY BOARD / NOTES (Sample Plug-in Extension)
-// ============================================================================
-registerExtension({
-  id: "notes",
-  name: "family board",
-  accent: "#6A00FF",
-  canAddToCustomColumn: true,
-  hasAddAction: true,
-  infoText: "Pin shared announcements, Wi-Fi passwords, babysitter numbers, and weekend project reminders.",
-  renderAddForm(slotConfig, onComplete) {
-    const wrap = document.createElement("div");
-    wrap.className = "quick-form";
-    wrap.style.marginBottom = "0";
-    wrap.innerHTML = `
-      <input class="metro-input" id="noteTitle_${slotConfig.id}" placeholder="heading..." style="max-width:120px" />
-      <input class="metro-input" id="noteBody_${slotConfig.id}" placeholder="note text..." />
-      <button class="metro-btn accent" style="--accent:#6A00FF" id="btnAddNote_${slotConfig.id}">pin</button>
-    `;
-    const tIn = wrap.querySelector(`#noteTitle_${slotConfig.id}`);
-    const bIn = wrap.querySelector(`#noteBody_${slotConfig.id}`);
-    const addNote = () => {
-      const title = tIn.value.trim() || "note";
-      const body = bIn.value.trim();
-      if (!body) return;
-      appState.notes.unshift({
-        id: "note-" + Date.now(),
-        title: title.toLowerCase(),
-        body,
-      });
-      onComplete();
-      saveState("Pinned family note");
-    };
-    wrap.querySelector(`#btnAddNote_${slotConfig.id}`).addEventListener("click", addNote);
-    bIn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addNote();
-    });
-    setTimeout(() => tIn.focus(), 20);
-    return wrap;
-  },
-  renderSlot(slotConfig) {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `<div class="metro-list" id="noteList_${slotConfig.id}"></div>`;
-
-    const listEl = wrap.querySelector(`#noteList_${slotConfig.id}`);
-    appState.notes.forEach((n) => {
-      const card = document.createElement("div");
-      card.className = "meal-card";
-      card.style.borderLeftColor = "#6A00FF";
-      card.innerHTML = `
-        <div class="meal-card-top">
-          <div style="font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#6A00FF;">
-            ${escapeHtml(n.title)}
-          </div>
-          <button class="slot-icon-btn">✕</button>
-        </div>
-        <div style="font-size:14px; color:var(--text-primary);">${escapeHtml(n.body)}</div>
-      `;
-      card.querySelector("button").addEventListener("click", () => {
-        appState.notes = appState.notes.filter((x) => x.id !== n.id);
-        saveState();
-      });
-      listEl.appendChild(card);
-    });
-
-    return wrap;
-  },
-});
 
 // ============================================================================
 // PANORAMA COLUMN RENDERER & LAYOUT MOVEMENT LOGIC
@@ -1333,18 +750,16 @@ function renderAll() {
         });
       }
 
+      const ctx = createExtensionContext(slotConfig, colConfig);
+
       // Immediately show the add/settings UI below the icon row when the `•••` drawer is opened!
       const inlinePane = slotEl.querySelector(".slot-inline-pane");
       if (drawer.open && plugin.renderAddForm) {
-        inlinePane.appendChild(
-          plugin.renderAddForm(slotConfig, () => {
-            uiState.slotDrawers[slotConfig.id] = { open: false, mode: null };
-          })
-        );
+        inlinePane.appendChild(plugin.renderAddForm(ctx, ctx.closeDrawer));
       }
 
       const bodyEl = slotEl.querySelector(".slot-body");
-      bodyEl.appendChild(plugin.renderSlot(slotConfig, colConfig));
+      bodyEl.appendChild(plugin.renderSlot(ctx, colConfig));
       colEl.appendChild(slotEl);
     });
 
@@ -1462,7 +877,7 @@ function renderFlyoutContent() {
 
         <div class="flyout-section-title" style="margin-top:6px;">available extensions</div>
         <p style="font-size:13px; color:var(--text-secondary);">
-          Every feature is a self-contained module. Toggle any extension on or off at any time.
+          Drop any <code>.js</code> file into <code>public/extensions/</code> to register a new extension automatically.
         </p>
         <div style="display:flex; flex-direction:column; gap:10px;" id="extCardsContainer"></div>
       `;
@@ -1581,6 +996,7 @@ function renderFlyoutContent() {
         if (res.ok) {
           const data = await res.json();
           appState = data.state;
+          syncExtensionsWithAppState();
           applyThemeAndAccent();
           renderAll();
           refreshWeather();

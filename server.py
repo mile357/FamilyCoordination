@@ -634,6 +634,19 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/extensions":
+            ext_dir = os.path.join(PUBLIC_DIR, "extensions")
+            core_order = ["calendar.js", "meals.js", "groceries.js", "chores.js", "notes.js"]
+            found = []
+            if os.path.isdir(ext_dir):
+                for fname in sorted(os.listdir(ext_dir)):
+                    if fname.endswith(".js") and not fname.startswith(("_", ".")):
+                        found.append(fname)
+            ordered = [f for f in core_order if f in found] + [
+                f for f in found if f not in core_order
+            ]
+            self._send_json({"ok": True, "files": ordered})
+            return
         if parsed.path == "/api/state":
             self._send_json(read_state())
             return
