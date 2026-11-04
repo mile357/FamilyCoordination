@@ -36,9 +36,9 @@ def get_initial_state():
             "calendar": {
                 "id": "calendar",
                 "name": "shared calendar",
-                "description": "Read-only Google & Microsoft calendar sync with pinned Today Hour-by-Hour and 7-Day Agenda columns.",
+                "description": "Read-only Google & Microsoft calendar sync (2-column view: Today Hour-by-Hour + Next 7 Days Agenda).",
                 "enabled": True,
-                "pinnedColumns": True,
+                "defaultSize": "double",
                 "accent": "#00ABA9",
             },
             "meals": {
@@ -46,7 +46,7 @@ def get_initial_state():
                 "name": "meal planner",
                 "description": "Simple family meal list & recipe catalog. Adding a meal automatically adds its linked ingredients to groceries.",
                 "enabled": True,
-                "pinnedColumns": False,
+                "defaultSize": "half",
                 "accent": "#A20025",
             },
             "groceries": {
@@ -54,7 +54,7 @@ def get_initial_state():
                 "name": "grocery list",
                 "description": "Touch-friendly grocery checklist with automatic meal ingredient bundling and quick-add.",
                 "enabled": True,
-                "pinnedColumns": False,
+                "defaultSize": "half",
                 "accent": "#60A917",
             },
             "chores": {
@@ -62,7 +62,7 @@ def get_initial_state():
                 "name": "daily chores",
                 "description": "Sample plug-in extension: Family daily responsibilities and quick check-offs.",
                 "enabled": True,
-                "pinnedColumns": False,
+                "defaultSize": "half",
                 "accent": "#FA6800",
             },
             "notes": {
@@ -70,11 +70,17 @@ def get_initial_state():
                 "name": "family board",
                 "description": "Sample plug-in extension: Quick pinned announcements, Wi-Fi codes, and reminders.",
                 "enabled": True,
-                "pinnedColumns": False,
+                "defaultSize": "half",
                 "accent": "#6A00FF",
             },
         },
         "columns": [
+            {
+                "id": "col-calendar",
+                "slots": [
+                    {"id": "slot-cal", "extensionId": "calendar", "size": "double"},
+                ],
+            },
             {
                 "id": "col-meals-groceries",
                 "slots": [

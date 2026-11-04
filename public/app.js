@@ -40,10 +40,11 @@ function registerExtension(definition) {
 // Local UI state (pivots, active modals, per-slot Metro command drawer state)
 const uiState = {
   mealsPivot: "plan", // "plan" | "catalog"
-  settingsPivot: "extensions", // "extensions" | "calendars" | "appearance"
+  settingsPivot: "extensions", // "extensions" | "appearance"
   flyoutMode: null,   // "settings" | "add-column" | "fill-half"
   targetColumnId: null,
-  slotDrawers: {},    // { [slotId]: { open: boolean, mode: null | "add" | "info" } }
+  arrangeMode: false, // Dedicated Metro Wireframe / Customize Layout mode
+  slotDrawers: {},    // { [slotId]: { open: boolean, mode: null | "info" } }
 };
 
 function getSlotDrawerState(slotId) {
@@ -81,6 +82,22 @@ async function loadState() {
     const cached = localStorage.getItem("metro_family_hub_state");
     if (cached) {
       appState = JSON.parse(cached);
+    }
+  }
+  // Migrate older state so Calendar is a standard 2-column ("double") widget in appState.columns
+  if (appState && Array.isArray(appState.columns)) {
+    const hasCalSlot = appState.columns.some((c) =>
+      (c.slots || []).some((s) => s.extensionId === "calendar")
+    );
+    if (!hasCalSlot) {
+      appState.columns.unshift({
+        id: "col-calendar",
+        slots: [{ id: "slot-cal", extensionId: "calendar", size: "double" }],
+      });
+    }
+    if (appState.extensions && appState.extensions.calendar) {
+      delete appState.extensions.calendar.pinnedColumns;
+      appState.extensions.calendar.defaultSize = "double";
     }
   }
   applyThemeAndAccent();
@@ -249,28 +266,138 @@ function applyThemeAndAccent() {
 }
 
 // ============================================================================
-// EXTENSION 1: SHARED CALENDAR (Pinned Column 1: Today Hourly, Column 2: 7-Day Agenda)
+// EXTENSION 1: SHARED CALENDAR (2-Column Widget: Today Hourly + Next 7 Days Agenda)
 // ============================================================================
 registerExtension({
   id: "calendar",
   name: "shared calendar",
   accent: "#00ABA9",
-  canAddToCustomColumn: false, // Pinned to Columns 1 & 2 when enabled
-  renderTodayColumn() {
-    const col = document.createElement("section");
-    col.className = "metro-column";
-    const slotId = "pinned-cal-today";
-    const drawer = getSlotDrawerState(slotId);
+  canAddToCustomColumn: true,
+  fixedSize: "double", // Automatically spans 2 columns (Today + Next 7 Days)
+  customHeaderTitles: ["today", "next 7 days"],
+  infoText: "Read-only 2-column view of Today (hour-by-hour) and the Next 7 Days. Toggle calendar feeds or connect a new read-only .ics feed below.",
+  renderAddForm(slotConfig) {
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.gap = "12px";
 
+    wrap.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div class="calendar-filter-strip" style="padding:0; flex:1;" id="calStrip_${slotConfig.id}"></div>
+          <button class="slot-icon-btn" id="btnInlineSyncCal_${slotConfig.id}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
+        </div>
+
+        <div class="quick-form" style="margin-bottom:0; width:100%;">
+          <input class="metro-input" id="newCalName_${slotConfig.id}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:220px;" />
+          <select class="metro-input" id="newCalProvider_${slotConfig.id}" style="max-width:130px;">
+            <option value="google">Google</option>
+            <option value="microsoft">Microsoft</option>
+          </select>
+          <input class="metro-input" id="newCalUrl_${slotConfig.id}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
+          <button class="metro-btn accent" id="btnConnectCal_${slotConfig.id}">+ connect</button>
+        </div>
+      </div>
+    `;
+
+    // Render interactive calendar chips with visibility toggle + disconnect (✕) button
+    const strip = wrap.querySelector(`#calStrip_${slotConfig.id}`);
+    appState.calendars.forEach((cal) => {
+      const chip = document.createElement("div");
+      chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
+      chip.style.setProperty("--cal-color", cal.color);
+      chip.innerHTML = `
+        <span class="chip-toggle-area" style="display:inline-flex; align-items:center; gap:6px;">
+          <strong>${cal.provider === "google" ? "G" : "M"}</strong>
+          <span>${escapeHtml(cal.name)}</span>
+        </span>
+        <span class="chip-remove-btn" title="Disconnect feed" style="margin-left:6px; opacity:0.6; font-size:11px;">✕</span>
+      `;
+      chip.querySelector(".chip-toggle-area").addEventListener("click", () => {
+        cal.visible = !cal.visible;
+        saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
+      });
+      chip.querySelector(".chip-remove-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
+        appState.events = appState.events.filter((ev) => ev.calendarId !== cal.id);
+        saveState(`Disconnected ${cal.name}`);
+      });
+      strip.appendChild(chip);
+    });
+
+    wrap.querySelector(`#btnInlineSyncCal_${slotConfig.id}`).addEventListener("click", async () => {
+      showToast("Syncing read-only calendar feeds...");
+      try {
+        const res = await fetch("/api/sync-calendars", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) {
+          appState = data.state;
+          renderAll();
+          showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
+        }
+      } catch (e) {
+        showToast("Sync complete");
+      }
+    });
+
+    wrap.querySelector(`#btnConnectCal_${slotConfig.id}`).addEventListener("click", async () => {
+      const name = wrap.querySelector(`#newCalName_${slotConfig.id}`).value.trim();
+      const provider = wrap.querySelector(`#newCalProvider_${slotConfig.id}`).value;
+      const url = wrap.querySelector(`#newCalUrl_${slotConfig.id}`).value.trim();
+      if (!name || !url) {
+        showToast("Please enter both a label and a read-only .ics URL");
+        return;
+      }
+      const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
+      const color = palette[appState.calendars.length % palette.length];
+      const newCalId = "cal-" + Date.now();
+      appState.calendars.push({
+        id: newCalId,
+        name,
+        provider,
+        color,
+        visible: true,
+        readOnly: true,
+        icsUrl: url,
+        account: `${provider} read-only .ics`,
+        lastSync: "Just now",
+      });
+      await saveState(`Connected read-only ${provider} feed: ${name}`);
+
+      if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("webcal://")) {
+        try {
+          const res = await fetch("/api/sync-calendars", { method: "POST" });
+          const data = await res.json();
+          if (data.ok) {
+            appState = data.state;
+            renderAll();
+            showToast(`Synced events from ${name}`);
+          }
+        } catch (e) {}
+      }
+    });
+
+    return wrap;
+  },
+  renderSlot() {
     const visibleCalIds = new Set(
       appState.calendars.filter((c) => c.visible).map((c) => c.id)
     );
     const calMap = new Map(appState.calendars.map((c) => [c.id, c]));
 
+    const grid = document.createElement("div");
+    grid.className = "double-split-grid";
+
+    // LEFT PANE: Today's Hour-by-Hour Timeline
+    const leftPane = document.createElement("div");
+    leftPane.className = "double-pane";
+    const timeline = document.createElement("div");
+    timeline.className = "hour-timeline";
+
     const now = new Date();
     const currentHour = now.getHours();
-
-    // Filter events for today
     const todayEvents = appState.events.filter((ev) => {
       if (!visibleCalIds.has(ev.calendarId)) return false;
       const d = new Date(ev.start);
@@ -281,77 +408,6 @@ registerExtension({
       );
     });
 
-    const slot = document.createElement("div");
-    slot.className = "metro-slot size-full";
-    slot.style.setProperty("--slot-accent", "#00ABA9");
-
-    slot.innerHTML = `
-      <div class="slot-header">
-        <div class="slot-title-group">
-          <h2 class="slot-title">today</h2>
-        </div>
-        <div class="slot-controls">
-          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
-        </div>
-      </div>
-      <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
-        <div class="slot-appbar-row">
-          <div class="slot-info-inline">${
-            drawer.mode === "info"
-              ? "Pinned hour-by-hour view of Today. Tap a calendar chip below to toggle visibility."
-              : ""
-          }</div>
-          <div class="slot-appbar-icons">
-            <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
-              <span class="appbar-cmd-circle">i</span>
-              <span class="appbar-cmd-label">info</span>
-            </button>
-            <button class="appbar-cmd" data-cmd="feeds">
-              <span class="appbar-cmd-circle">⚙</span>
-              <span class="appbar-cmd-label">feeds</span>
-            </button>
-          </div>
-        </div>
-        <div class="slot-inline-pane" id="todayInlinePane"></div>
-      </div>
-      <div class="slot-body" id="todayHourlyBody">
-        <div class="hour-timeline" id="todayTimeline"></div>
-      </div>
-    `;
-
-    slot.querySelector(".slot-header").addEventListener("click", () => {
-      toggleSlotDrawer(slotId);
-    });
-
-    slot.querySelector('[data-cmd="info"]').addEventListener("click", () => {
-      setSlotDrawerMode(slotId, "info");
-    });
-
-    slot.querySelector('[data-cmd="feeds"]').addEventListener("click", () => {
-      openFlyout("settings", "calendars");
-    });
-
-    if (drawer.open) {
-      const pane = slot.querySelector("#todayInlinePane");
-      pane.innerHTML = `
-        <div class="calendar-filter-strip" style="padding:0;" id="todayCalFilterStrip"></div>
-      `;
-      const strip = pane.querySelector("#todayCalFilterStrip");
-      appState.calendars.forEach((cal) => {
-        const chip = document.createElement("button");
-        chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
-        chip.style.setProperty("--cal-color", cal.color);
-        chip.innerHTML = `<span>${cal.provider === "google" ? "G" : "M"}</span> <span>${escapeHtml(cal.name)}</span>`;
-        chip.addEventListener("click", () => {
-          cal.visible = !cal.visible;
-          saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
-        });
-        strip.appendChild(chip);
-      });
-    }
-
-    // Build 24-hour scrollable timeline (6 AM to 10 PM)
-    const timeline = slot.querySelector("#todayTimeline");
     for (let hour = 6; hour <= 22; hour++) {
       const row = document.createElement("div");
       row.className = `hour-row ${hour === currentHour ? "current-hour" : ""}`;
@@ -365,16 +421,13 @@ registerExtension({
           : `${hour - 12} pm`;
 
       const matching = todayEvents.filter((ev) => new Date(ev.start).getHours() === hour);
-
       const eventsHtml = matching
         .map((ev) => {
           const cal = calMap.get(ev.calendarId);
           const color = cal ? cal.color : "#00ABA9";
-          const startStr = formatTimeShort(new Date(ev.start));
-          const endStr = formatTimeShort(new Date(ev.end));
           return `
             <div class="metro-event-tile" style="--ev-color: ${color}">
-              <div class="ev-time">${startStr} – ${endStr}</div>
+              <div class="ev-time">${formatTimeShort(new Date(ev.start))} – ${formatTimeShort(new Date(ev.end))}</div>
               <div class="ev-title">${escapeHtml(ev.title)}</div>
               <div class="ev-meta">
                 <span>${escapeHtml(ev.location || "")}</span>
@@ -391,70 +444,11 @@ registerExtension({
       `;
       timeline.appendChild(row);
     }
+    leftPane.appendChild(timeline);
 
-    col.appendChild(slot);
-    return col;
-  },
-
-  renderAgendaColumn() {
-    const col = document.createElement("section");
-    col.className = "metro-column";
-    const slotId = "pinned-cal-agenda";
-    const drawer = getSlotDrawerState(slotId);
-
-    const visibleCalIds = new Set(
-      appState.calendars.filter((c) => c.visible).map((c) => c.id)
-    );
-    const calMap = new Map(appState.calendars.map((c) => [c.id, c]));
-
-    const slot = document.createElement("div");
-    slot.className = "metro-slot size-full";
-    slot.style.setProperty("--slot-accent", "#1BA1E2");
-
-    slot.innerHTML = `
-      <div class="slot-header">
-        <div class="slot-title-group">
-          <h2 class="slot-title">next 7 days</h2>
-        </div>
-        <div class="slot-controls">
-          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
-        </div>
-      </div>
-      <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
-        <div class="slot-appbar-row">
-          <div class="slot-info-inline">${
-            drawer.mode === "info"
-              ? `Read-only 7-day rolling family agenda across ${appState.calendars.filter((c) => c.visible).length} visible calendars.`
-              : ""
-          }</div>
-          <div class="slot-appbar-icons">
-            <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
-              <span class="appbar-cmd-circle">i</span>
-              <span class="appbar-cmd-label">info</span>
-            </button>
-            <button class="appbar-cmd" data-cmd="feeds">
-              <span class="appbar-cmd-circle">⚙</span>
-              <span class="appbar-cmd-label">feeds</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="slot-body" id="agendaBody"></div>
-    `;
-
-    slot.querySelector(".slot-header").addEventListener("click", () => {
-      toggleSlotDrawer(slotId);
-    });
-
-    slot.querySelector('[data-cmd="info"]').addEventListener("click", () => {
-      setSlotDrawerMode(slotId, "info");
-    });
-
-    slot.querySelector('[data-cmd="feeds"]').addEventListener("click", () => {
-      openFlyout("settings", "calendars");
-    });
-
-    const body = slot.querySelector("#agendaBody");
+    // RIGHT PANE: Next 7 Days Agenda
+    const rightPane = document.createElement("div");
+    rightPane.className = "double-pane";
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -515,11 +509,12 @@ registerExtension({
         </div>
         <div>${eventsHtml}</div>
       `;
-      body.appendChild(group);
+      rightPane.appendChild(group);
     }
 
-    col.appendChild(slot);
-    return col;
+    grid.appendChild(leftPane);
+    grid.appendChild(rightPane);
+    return grid;
   },
 });
 
@@ -988,90 +983,345 @@ registerExtension({
 });
 
 // ============================================================================
-// PANORAMA COLUMN RENDERER
+// PANORAMA COLUMN RENDERER & LAYOUT MOVEMENT LOGIC
 // ============================================================================
+function moveSlotHorizontal(colConfig, slotConfig, direction, activeColumns, colIndex) {
+  const plugin = ExtensionRegistry.get(slotConfig.extensionId);
+  const labelDir = direction < 0 ? "left" : "right";
+  const enabledSlots = colConfig.slots.filter((s) => {
+    const ext = appState.extensions[s.extensionId];
+    return ext && ext.enabled && ExtensionRegistry.has(s.extensionId);
+  });
+
+  const targetCol = activeColumns[colIndex + direction];
+  const targetEnabledSlots = targetCol
+    ? targetCol.slots.filter((s) => {
+        const ext = appState.extensions[s.extensionId];
+        return ext && ext.enabled && ExtensionRegistry.has(s.extensionId);
+      })
+    : [];
+
+  const isHalf = slotConfig.size === "half" && !plugin.fixedSize;
+  const targetHasOpenHalf =
+    Boolean(targetCol) &&
+    targetEnabledSlots.length === 1 &&
+    targetEnabledSlots[0].size === "half" &&
+    !(ExtensionRegistry.get(targetEnabledSlots[0].extensionId) || {}).fixedSize;
+
+  // Case 1: Two half-column widgets are sharing this column.
+  if (enabledSlots.length > 1) {
+    colConfig.slots = colConfig.slots.filter((s) => s.id !== slotConfig.id);
+    if (targetHasOpenHalf) {
+      // Move directly into the open half-slot of the adjacent column
+      targetCol.slots.push({ ...slotConfig, size: "half" });
+    } else {
+      // No open space in the adjacent column -> create a new column on that side
+      const colIdx = appState.columns.indexOf(colConfig);
+      const insertIdx = direction < 0 ? colIdx : colIdx + 1;
+      appState.columns.splice(insertIdx, 0, {
+        id: "col-" + Date.now(),
+        slots: [{ ...slotConfig, size: "half" }],
+      });
+    }
+    saveState(`Moved ${plugin.name} ${labelDir}`);
+    return;
+  }
+
+  // Case 2: This widget is the only enabled widget in colConfig.
+  if (!targetCol) return;
+
+  // Subcase 2a: Both this column and the adjacent target column have a single half-widget -> merge into targetCol!
+  if (isHalf && targetHasOpenHalf) {
+    targetCol.slots.push(slotConfig);
+    appState.columns = appState.columns.filter((c) => c.id !== colConfig.id);
+    saveState(`Combined ${plugin.name} into column`);
+    return;
+  }
+
+  // Subcase 2b: Otherwise, swap the two columns in appState.columns.
+  const idxA = appState.columns.indexOf(colConfig);
+  const idxB = appState.columns.indexOf(targetCol);
+  if (idxA !== -1 && idxB !== -1) {
+    [appState.columns[idxA], appState.columns[idxB]] = [
+      appState.columns[idxB],
+      appState.columns[idxA],
+    ];
+    saveState(`Moved ${plugin.name} ${labelDir}`);
+  }
+}
+
 function renderAll() {
   if (!appState) return;
   const stage = document.getElementById("panoramaStage");
   stage.innerHTML = "";
 
-  // 1. Pinned Columns 1 & 2 if Shared Calendar extension is enabled
-  const calExtState = appState.extensions.calendar;
-  if (calExtState && calExtState.enabled) {
-    const calPlugin = ExtensionRegistry.get("calendar");
-    if (calPlugin) {
-      stage.appendChild(calPlugin.renderTodayColumn());
-      stage.appendChild(calPlugin.renderAgendaColumn());
+  // Update top-right header action to show "✓ done" when in Customize Layout mode
+  const headerActions = document.querySelector(".header-actions");
+  if (headerActions) {
+    if (uiState.arrangeMode) {
+      headerActions.innerHTML = `<button class="layout-done-btn" id="btnExitArrange">✓ done</button>`;
+      headerActions.querySelector("#btnExitArrange").addEventListener("click", (e) => {
+        e.stopPropagation();
+        uiState.arrangeMode = false;
+        renderAll();
+        showToast("Layout locked");
+      });
+    } else {
+      headerActions.innerHTML = `<button class="metro-ellipsis-btn global-ellipsis" id="btnSettings" title="Settings & Extensions">•••</button>`;
     }
   }
 
-  // 2. Render user-configured columns (filtering out disabled extensions)
-  appState.columns.forEach((colConfig) => {
+  // Filter to columns that have at least one enabled extension slot
+  const activeColumns = appState.columns.filter((colConfig) =>
+    colConfig.slots.some((s) => {
+      const ext = appState.extensions[s.extensionId];
+      return ext && ext.enabled && ExtensionRegistry.has(s.extensionId);
+    })
+  );
+
+  activeColumns.forEach((colConfig, colIndex) => {
     const enabledSlots = colConfig.slots.filter((s) => {
       const ext = appState.extensions[s.extensionId];
       return ext && ext.enabled && ExtensionRegistry.has(s.extensionId);
     });
 
-    if (enabledSlots.length === 0) return;
+    const isDoubleCol = enabledSlots.some((s) => {
+      const p = ExtensionRegistry.get(s.extensionId);
+      return s.size === "double" || (p && p.fixedSize === "double");
+    });
 
     const colEl = document.createElement("section");
-    colEl.className = "metro-column";
+    colEl.className = `metro-column ${isDoubleCol ? "double-column" : ""}`;
 
-    enabledSlots.forEach((slotConfig) => {
+    enabledSlots.forEach((slotConfig, slotIndex) => {
       const plugin = ExtensionRegistry.get(slotConfig.extensionId);
       const extMeta = appState.extensions[slotConfig.extensionId];
       const drawer = getSlotDrawerState(slotConfig.id);
 
+      const isDouble = slotConfig.size === "double" || plugin.fixedSize === "double";
+      const isFull = slotConfig.size === "full" || isDouble;
+      const effectiveSize = isDouble
+        ? "size-double"
+        : isFull
+        ? "size-full"
+        : "size-half";
+
       const slotEl = document.createElement("div");
-      const effectiveSize = slotConfig.size === "full" ? "size-full" : "size-half";
-      slotEl.className = `metro-slot ${effectiveSize}`;
+      slotEl.className = `metro-slot ${effectiveSize} ${
+        uiState.arrangeMode ? "arrange-wireframe" : ""
+      }`;
       slotEl.style.setProperty("--slot-accent", extMeta.accent || plugin.accent);
 
-      const isFull = slotConfig.size === "full";
-      const resizeArrow = isFull ? "↓" : "↑";
-      const resizeLabel = isFull ? "half col" : "full col";
+      if (uiState.arrangeMode) {
+        // ====================================================================
+        // WIREFRAME / CUSTOMIZE LAYOUT MODE
+        // ====================================================================
+        const canSwapVertical = enabledSlots.length === 2;
+        const canMoveLeft = canSwapVertical || colIndex > 0;
+        const canMoveRight = canSwapVertical || colIndex < activeColumns.length - 1;
+        const swapArrow = slotIndex === 0 ? "↓" : "↑";
+        const swapLabel = slotIndex === 0 ? "move down" : "move up";
+        const resizeArrow = isFull ? "½" : "⤢";
+        const resizeLabel = isFull ? "half col" : "full col";
 
-      slotEl.innerHTML = `
-        <div class="slot-header">
-          <div class="slot-title-group">
-            <h2 class="slot-title">${escapeHtml(plugin.name)}</h2>
+        const headerTitleHtml = plugin.customHeaderTitles
+          ? `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--col-gap); width:100%;">
+              <h2 class="slot-title">${escapeHtml(plugin.customHeaderTitles[0])}</h2>
+              <h2 class="slot-title">${escapeHtml(plugin.customHeaderTitles[1])}</h2>
+            </div>
+          `
+          : `<h2 class="slot-title">${escapeHtml(plugin.name)}</h2>`;
+
+        slotEl.innerHTML = `
+          <div class="slot-header" style="cursor:default;">
+            <div class="slot-title-group" style="flex:1;">
+              ${headerTitleHtml}
+            </div>
           </div>
-          <div class="slot-controls">
-            <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
-          </div>
-        </div>
-        <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
-          <div class="slot-appbar-row">
-            <div class="slot-info-inline">${
-              drawer.mode === "info" && plugin.infoText ? escapeHtml(plugin.infoText) : ""
-            }</div>
-            <div class="slot-appbar-icons">
+          <div class="wireframe-overlay">
+            <div class="wireframe-title-label">
+              ${isDouble ? "2-column widget" : isFull ? "full-column widget" : "half-column widget"}
+            </div>
+            <div class="wireframe-controls-row">
+              <button class="wireframe-OnTile-btn" data-arr="left" ${!canMoveLeft ? "disabled" : ""}>
+                <span class="wireframe-circle">←</span>
+                <span class="wireframe-label">move left</span>
+              </button>
+              <button class="wireframe-OnTile-btn" data-arr="right" ${!canMoveRight ? "disabled" : ""}>
+                <span class="wireframe-circle">→</span>
+                <span class="wireframe-label">move right</span>
+              </button>
               ${
-                plugin.infoText
+                canSwapVertical
                   ? `
-                    <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
-                      <span class="appbar-cmd-circle">i</span>
-                      <span class="appbar-cmd-label">info</span>
+                    <button class="wireframe-OnTile-btn" data-arr="swap-vert">
+                      <span class="wireframe-circle">${swapArrow}</span>
+                      <span class="wireframe-label">${swapLabel}</span>
                     </button>
                   `
                   : ""
               }
-              <button class="appbar-cmd" data-cmd="toggle-size">
-                <span class="appbar-cmd-circle">${resizeArrow}</span>
-                <span class="appbar-cmd-label">${resizeLabel}</span>
-              </button>
-              <button class="appbar-cmd" data-cmd="remove-slot">
-                <span class="appbar-cmd-circle">✕</span>
-                <span class="appbar-cmd-label">remove</span>
+              ${
+                !plugin.fixedSize
+                  ? `
+                    <button class="wireframe-OnTile-btn" data-arr="toggle-size">
+                      <span class="wireframe-circle">${resizeArrow}</span>
+                      <span class="wireframe-label">${resizeLabel}</span>
+                    </button>
+                  `
+                  : ""
+              }
+              <button class="wireframe-OnTile-btn danger" data-arr="remove">
+                <span class="wireframe-circle">✕</span>
+                <span class="wireframe-label">remove</span>
               </button>
             </div>
           </div>
-          <div class="slot-inline-pane"></div>
-        </div>
-        <div class="slot-body"></div>
-      `;
+        `;
 
-      // Toggle `•••` command drawer when clicking anywhere on the widget header (title, ellipsis, or space between)
+        slotEl.querySelector('[data-arr="left"]').addEventListener("click", () => {
+          if (!canMoveLeft) return;
+          moveSlotHorizontal(colConfig, slotConfig, -1, activeColumns, colIndex);
+        });
+
+        slotEl.querySelector('[data-arr="right"]').addEventListener("click", () => {
+          if (!canMoveRight) return;
+          moveSlotHorizontal(colConfig, slotConfig, 1, activeColumns, colIndex);
+        });
+
+        const swapVertBtn = slotEl.querySelector('[data-arr="swap-vert"]');
+        if (swapVertBtn) {
+          swapVertBtn.addEventListener("click", () => {
+            colConfig.slots.reverse();
+            saveState(`Swapped ${plugin.name} position`);
+          });
+        }
+
+        const sizeBtn = slotEl.querySelector('[data-arr="toggle-size"]');
+        if (sizeBtn) {
+          sizeBtn.addEventListener("click", () => {
+            if (slotConfig.size === "half") {
+              const displacedSlots = colConfig.slots.filter((s) => s.id !== slotConfig.id);
+              slotConfig.size = "full";
+              colConfig.slots = [slotConfig];
+
+              if (displacedSlots.length > 0) {
+                const colIdx = appState.columns.indexOf(colConfig);
+                const nextCol = activeColumns[colIndex + 1];
+                const nextEnabledSlots = nextCol
+                  ? nextCol.slots.filter((s) => {
+                      const ext = appState.extensions[s.extensionId];
+                      return ext && ext.enabled && ExtensionRegistry.has(s.extensionId);
+                    })
+                  : [];
+                const nextHasOpenHalf =
+                  nextCol &&
+                  nextEnabledSlots.length === 1 &&
+                  nextEnabledSlots[0].size === "half" &&
+                  !(ExtensionRegistry.get(nextEnabledSlots[0].extensionId) || {}).fixedSize;
+
+                if (nextHasOpenHalf) {
+                  nextCol.slots.push(...displacedSlots.map((s) => ({ ...s, size: "half" })));
+                } else {
+                  appState.columns.splice(colIdx + 1, 0, {
+                    id: "col-" + Date.now(),
+                    slots: displacedSlots.map((s) => ({ ...s, size: "half" })),
+                  });
+                }
+              }
+              saveState(`Expanded ${plugin.name} to full column`);
+            } else {
+              slotConfig.size = "half";
+              saveState(`Set ${plugin.name} to half column`);
+            }
+          });
+        }
+
+        slotEl.querySelector('[data-arr="remove"]').addEventListener("click", () => {
+          delete uiState.slotDrawers[slotConfig.id];
+          colConfig.slots = colConfig.slots.filter((s) => s.id !== slotConfig.id);
+          if (colConfig.slots.length === 0) {
+            appState.columns = appState.columns.filter((c) => c.id !== colConfig.id);
+          }
+          saveState(`Removed ${plugin.name}`);
+        });
+
+        colEl.appendChild(slotEl);
+        return;
+      }
+
+      // ======================================================================
+      // NORMAL DAILY MODE (Clean Content + Everyday `•••` Drawer Only)
+      // ======================================================================
+      if (plugin.customHeaderTitles) {
+        slotEl.innerHTML = `
+          <div class="slot-header" style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--col-gap); align-items:baseline;">
+            <h2 class="slot-title">${escapeHtml(plugin.customHeaderTitles[0])}</h2>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; width:100%;">
+              <h2 class="slot-title">${escapeHtml(plugin.customHeaderTitles[1])}</h2>
+              <div class="slot-controls">
+                <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
+              </div>
+            </div>
+          </div>
+          <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+            <div class="slot-appbar-row">
+              <div class="slot-info-inline">${
+                drawer.mode === "info" && plugin.infoText ? escapeHtml(plugin.infoText) : ""
+              }</div>
+              <div class="slot-appbar-icons">
+                ${
+                  plugin.infoText
+                    ? `
+                      <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
+                        <span class="appbar-cmd-circle">i</span>
+                        <span class="appbar-cmd-label">info</span>
+                      </button>
+                    `
+                    : ""
+                }
+              </div>
+            </div>
+            <div class="slot-inline-pane"></div>
+          </div>
+          <div class="slot-body"></div>
+        `;
+      } else {
+        slotEl.innerHTML = `
+          <div class="slot-header">
+            <div class="slot-title-group" style="flex:1;">
+              <h2 class="slot-title">${escapeHtml(plugin.name)}</h2>
+            </div>
+            <div class="slot-controls">
+              <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
+            </div>
+          </div>
+          <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+            <div class="slot-appbar-row">
+              <div class="slot-info-inline">${
+                drawer.mode === "info" && plugin.infoText ? escapeHtml(plugin.infoText) : ""
+              }</div>
+              <div class="slot-appbar-icons">
+                ${
+                  plugin.infoText
+                    ? `
+                      <button class="appbar-cmd ${drawer.mode === "info" ? "active" : ""}" data-cmd="info">
+                        <span class="appbar-cmd-circle">i</span>
+                        <span class="appbar-cmd-label">info</span>
+                      </button>
+                    `
+                    : ""
+                }
+              </div>
+            </div>
+            <div class="slot-inline-pane"></div>
+          </div>
+          <div class="slot-body"></div>
+        `;
+      }
+
+      // Toggle `•••` command drawer when clicking anywhere on the widget header
       slotEl.querySelector(".slot-header").addEventListener("click", () => {
         toggleSlotDrawer(slotConfig.id);
       });
@@ -1083,30 +1333,7 @@ function renderAll() {
         });
       }
 
-      // Toggle between Full-Column and Half-Column
-      slotEl.querySelector('[data-cmd="toggle-size"]').addEventListener("click", () => {
-        uiState.slotDrawers[slotConfig.id] = { open: false, mode: null };
-        if (slotConfig.size === "half") {
-          slotConfig.size = "full";
-          colConfig.slots = [slotConfig];
-          saveState(`Expanded ${plugin.name} to full column`);
-        } else {
-          slotConfig.size = "half";
-          saveState(`Set ${plugin.name} to half column`);
-        }
-      });
-
-      // Remove slot from column
-      slotEl.querySelector('[data-cmd="remove-slot"]').addEventListener("click", () => {
-        delete uiState.slotDrawers[slotConfig.id];
-        colConfig.slots = colConfig.slots.filter((s) => s.id !== slotConfig.id);
-        if (colConfig.slots.length === 0) {
-          appState.columns = appState.columns.filter((c) => c.id !== colConfig.id);
-        }
-        saveState(`Removed ${plugin.name} column slot`);
-      });
-
-      // Immediately show the add/input UI below the icon row when the `•••` drawer is opened!
+      // Immediately show the add/settings UI below the icon row when the `•••` drawer is opened!
       const inlinePane = slotEl.querySelector(".slot-inline-pane");
       if (drawer.open && plugin.renderAddForm) {
         inlinePane.appendChild(
@@ -1121,8 +1348,8 @@ function renderAll() {
       colEl.appendChild(slotEl);
     });
 
-    // If the column has only 1 half-slot, show an interactive "Add bottom half extension" tile!
-    if (enabledSlots.length === 1 && enabledSlots[0].size === "half") {
+    // Only show "+ fill bottom half-column" in Customize Layout mode!
+    if (uiState.arrangeMode && enabledSlots.length === 1 && enabledSlots[0].size === "half") {
       const emptyHalf = document.createElement("div");
       emptyHalf.className = "metro-slot size-half empty-half-slot";
       emptyHalf.innerHTML = `
@@ -1139,18 +1366,20 @@ function renderAll() {
     stage.appendChild(colEl);
   });
 
-  // 3. Far-right "+ add column" ghost column in Panorama
-  const ghostCol = document.createElement("section");
-  ghostCol.className = "metro-column add-column-ghost";
-  ghostCol.innerHTML = `
-    <div style="font-size:48px; font-weight:200; line-height:1;">+</div>
-    <div style="font-size:20px; font-weight:300; text-transform:lowercase;">add column</div>
-    <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:0 16px;">
-      choose any enabled extension in full or half height
-    </div>
-  `;
-  ghostCol.addEventListener("click", () => openFlyout("add-column"));
-  stage.appendChild(ghostCol);
+  // Only show "+ add column" ghost column in Customize Layout mode!
+  if (uiState.arrangeMode) {
+    const ghostCol = document.createElement("section");
+    ghostCol.className = "metro-column add-column-ghost";
+    ghostCol.innerHTML = `
+      <div style="font-size:48px; font-weight:200; line-height:1;">+</div>
+      <div style="font-size:20px; font-weight:300; text-transform:lowercase;">add column</div>
+      <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:0 16px;">
+        choose any enabled extension
+      </div>
+    `;
+    ghostCol.addEventListener("click", () => openFlyout("add-column"));
+    stage.appendChild(ghostCol);
+  }
 
   if (uiState.flyoutMode) {
     renderFlyoutContent();
@@ -1158,10 +1387,10 @@ function renderAll() {
 }
 
 // ============================================================================
-// FLYOUT DRAWER: EXTENSIONS MANAGER, CALENDAR FEEDS, & COLUMN BUILDER
+// FLYOUT DRAWER: GLOBAL SETTINGS (EXTENSIONS & APPEARANCE) & COLUMN BUILDER
 // ============================================================================
 function openFlyout(mode, pivot = null) {
-  if (mode === "calendars" || mode === "extensions") {
+  if (mode === "extensions" || mode === "appearance") {
     uiState.flyoutMode = "settings";
     uiState.settingsPivot = mode;
   } else {
@@ -1186,7 +1415,8 @@ function renderFlyoutContent() {
   if (!mode) return;
 
   if (mode === "settings") {
-    const activeTab = uiState.settingsPivot || "extensions";
+    const activeTab =
+      uiState.settingsPivot === "appearance" ? "appearance" : "extensions";
     const isDark = (appState.settings.theme || "dark") === "dark";
 
     panel.innerHTML = `
@@ -1198,9 +1428,6 @@ function renderFlyoutContent() {
       <div class="sub-pivots" style="gap:24px; margin-bottom:4px;">
         <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions" style="font-size:22px;">
           extensions
-        </button>
-        <button class="pivot-tab ${activeTab === "calendars" ? "active" : ""}" data-tab="calendars" style="font-size:22px;">
-          calendars
         </button>
         <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:22px;">
           appearance
@@ -1223,11 +1450,28 @@ function renderFlyoutContent() {
 
     if (activeTab === "extensions") {
       tabBody.innerHTML = `
+        <div class="extension-card" style="--ext-color: var(--accent); justify-content:space-between;">
+          <div>
+            <div style="font-size:20px; font-weight:300; text-transform:lowercase;">customize layout</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+              Move, resize, add, or remove columns and widgets on the Panorama.
+            </div>
+          </div>
+          <button class="metro-btn accent" id="btnEnterArrangeMode">customize layout</button>
+        </div>
+
+        <div class="flyout-section-title" style="margin-top:6px;">available extensions</div>
         <p style="font-size:13px; color:var(--text-secondary);">
           Every feature is a self-contained module. Toggle any extension on or off at any time.
         </p>
         <div style="display:flex; flex-direction:column; gap:10px;" id="extCardsContainer"></div>
       `;
+
+      tabBody.querySelector("#btnEnterArrangeMode").addEventListener("click", () => {
+        uiState.arrangeMode = true;
+        closeFlyout();
+        renderAll();
+      });
       const extContainer = tabBody.querySelector("#extCardsContainer");
       Object.values(appState.extensions).forEach((ext) => {
         const card = document.createElement("div");
@@ -1249,116 +1493,6 @@ function renderFlyoutContent() {
           saveState(`${ext.name} ${ext.enabled ? "enabled" : "disabled"}`);
         });
         extContainer.appendChild(card);
-      });
-    } else if (activeTab === "calendars") {
-      tabBody.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <p style="font-size:13px; color:var(--text-secondary); flex:1; padding-right:10px;">
-            Strictly <strong>read-only</strong> feeds. Manage events on your phone and connect Google or Microsoft iCal (<code>.ics</code>) URLs below.
-          </p>
-          <button class="metro-btn" id="btnSyncNow" title="Refresh all connected read-only .ics feeds">↻ sync feeds</button>
-        </div>
-        <div class="flyout-section" id="calSourcesList"></div>
-
-        <div class="flyout-section">
-          <div class="flyout-section-title">connect read-only google / microsoft feed</div>
-          <div class="quick-form" style="flex-direction:column; margin-bottom:0;">
-            <input class="metro-input" id="newCalName" placeholder="calendar label (e.g. Dad's Work, Soccer League)..." />
-            <div style="display:flex; gap:8px;">
-              <select class="metro-input" id="newCalProvider" style="max-width:165px;">
-                <option value="google">Google (Read-Only)</option>
-                <option value="microsoft">Microsoft (Read-Only)</option>
-              </select>
-              <input class="metro-input" id="newCalUrl" placeholder="read-only iCal (.ics) feed URL..." />
-            </div>
-            <button class="metro-btn accent" id="btnConnectCal">+ connect read-only feed</button>
-          </div>
-        </div>
-      `;
-
-      tabBody.querySelector("#btnSyncNow").addEventListener("click", async () => {
-        showToast("Syncing read-only calendar feeds...");
-        try {
-          const res = await fetch("/api/sync-calendars", { method: "POST" });
-          const data = await res.json();
-          if (data.ok) {
-            appState = data.state;
-            renderAll();
-            showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
-          } else {
-            showToast(`Sync error: ${data.error}`);
-          }
-        } catch (e) {
-          showToast("Could not reach calendar sync endpoint");
-        }
-      });
-
-      const list = tabBody.querySelector("#calSourcesList");
-      appState.calendars.forEach((cal) => {
-        const card = document.createElement("div");
-        card.className = "extension-card";
-        card.style.setProperty("--ext-color", cal.color);
-        card.innerHTML = `
-          <div>
-            <div style="font-size:18px; font-weight:400;">
-              ${escapeHtml(cal.name)}
-            </div>
-            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
-              ${escapeHtml(cal.provider)} read-only feed • synced ${escapeHtml(cal.lastSync || "just now")}
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div class="metro-toggle ${cal.visible ? "on" : ""}" title="Toggle visibility"></div>
-            <button class="slot-icon-btn" title="Disconnect feed">✕</button>
-          </div>
-        `;
-        card.querySelector(".metro-toggle").addEventListener("click", () => {
-          cal.visible = !cal.visible;
-          saveState(`${cal.name} visibility toggled`);
-        });
-        card.querySelector("button").addEventListener("click", () => {
-          appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
-          appState.events = appState.events.filter((ev) => ev.calendarId !== cal.id);
-          saveState(`Disconnected ${cal.name}`);
-        });
-        list.appendChild(card);
-      });
-
-      tabBody.querySelector("#btnConnectCal").addEventListener("click", async () => {
-        const name = tabBody.querySelector("#newCalName").value.trim();
-        const provider = tabBody.querySelector("#newCalProvider").value;
-        const url = tabBody.querySelector("#newCalUrl").value.trim();
-        if (!name || !url) {
-          showToast("Please provide both a calendar label and a read-only .ics URL");
-          return;
-        }
-        const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
-        const color = palette[appState.calendars.length % palette.length];
-        const newCalId = "cal-" + Date.now();
-        appState.calendars.push({
-          id: newCalId,
-          name,
-          provider,
-          color,
-          visible: true,
-          readOnly: true,
-          icsUrl: url,
-          account: `${provider} read-only .ics`,
-          lastSync: "Syncing...",
-        });
-        await saveState(`Connected read-only ${provider} feed: ${name}`);
-
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("webcal://")) {
-          try {
-            const res = await fetch("/api/sync-calendars", { method: "POST" });
-            const data = await res.json();
-            if (data.ok) {
-              appState = data.state;
-              renderAll();
-              showToast(`Synced events from ${name}`);
-            }
-          } catch (e) {}
-        }
       });
     } else if (activeTab === "appearance") {
       tabBody.innerHTML = `
@@ -1456,9 +1590,12 @@ function renderFlyoutContent() {
     }
   } else if (mode === "add-column" || mode === "fill-half") {
     const isHalfFill = mode === "fill-half";
-    const availableExts = Object.values(appState.extensions).filter(
-      (ext) => ext.enabled && !ext.pinnedColumns
-    );
+    const availableExts = Object.values(appState.extensions).filter((ext) => {
+      if (!ext.enabled) return false;
+      const plugin = ExtensionRegistry.get(ext.id);
+      if (isHalfFill && plugin && plugin.fixedSize === "double") return false;
+      return true;
+    });
 
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
@@ -1469,7 +1606,7 @@ function renderFlyoutContent() {
         ${
           isHalfFill
             ? "Choose an enabled extension to occupy the remaining half-column slot."
-            : "Columns have fixed width and each feature takes either a Full Column or Half Column."
+            : "Choose an enabled extension to add to the Panorama."
         }
       </p>
       <div class="flyout-section" id="pickerList"></div>
@@ -1481,13 +1618,16 @@ function renderFlyoutContent() {
     if (availableExts.length === 0) {
       pickerList.innerHTML = `
         <div style="padding:16px; background:var(--bg-tile);">
-          No placeable extensions are currently enabled. Open <strong>extensions</strong> to enable Meal Planner, Groceries, Chores, or Family Board.
+          No matching extensions are currently enabled. Open <strong>settings → extensions</strong> to enable them.
         </div>
       `;
       return;
     }
 
     availableExts.forEach((ext) => {
+      const plugin = ExtensionRegistry.get(ext.id);
+      const isDoubleOnly = plugin && plugin.fixedSize === "double";
+
       const card = document.createElement("div");
       card.className = "extension-card";
       card.style.setProperty("--ext-color", ext.accent);
@@ -1500,6 +1640,8 @@ function renderFlyoutContent() {
           ${
             isHalfFill
               ? `<button class="metro-btn accent" style="--accent:${ext.accent}" data-size="half">+ add half</button>`
+              : isDoubleOnly
+              ? `<button class="metro-btn accent" style="--accent:${ext.accent}" data-size="double">2 cols</button>`
               : `
                 <button class="metro-btn accent" style="--accent:${ext.accent}" data-size="full">full col</button>
                 <button class="metro-btn" data-size="half">half col</button>
@@ -1533,7 +1675,7 @@ function renderFlyoutContent() {
             });
           }
           closeFlyout();
-          saveState(`Added ${ext.name} (${size} column)`);
+          saveState(`Added ${ext.name}`);
         });
       });
 

@@ -271,6 +271,35 @@ html, body {
   position: relative;
 }
 
+.metro-column.double-column {
+  width: calc(var(--col-width) * 2 + var(--col-gap));
+  min-width: calc(var(--col-width) * 2 + var(--col-gap));
+  max-width: calc(var(--col-width) * 2 + var(--col-gap));
+}
+
+.double-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--col-gap);
+  height: 100%;
+  overflow: hidden;
+}
+
+.double-pane {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.double-pane::-webkit-scrollbar {
+  width: 4px;
+}
+
+.double-pane::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
 .metro-column.add-column-ghost {
   width: 220px;
   min-width: 220px;
@@ -305,7 +334,8 @@ html, body {
   position: relative;
 }
 
-.metro-slot.size-full {
+.metro-slot.size-full,
+.metro-slot.size-double {
   height: 100%;
   min-height: 100%;
   max-height: 100%;
@@ -820,6 +850,116 @@ html, body {
   background: var(--bg-canvas);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+}
+
+/* ==========================================================================
+   METRO CUSTOMIZE LAYOUT (WIREFRAME / ARRANGE) MODE
+   ========================================================================== */
+.layout-done-btn {
+  background: var(--accent);
+  color: #FFFFFF;
+  border: 2px solid var(--accent);
+  padding: 6px 16px;
+  font-family: var(--font-metro);
+  font-size: 16px;
+  font-weight: 400;
+  text-transform: lowercase;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.layout-done-btn:active {
+  transform: scale(0.96);
+}
+
+.metro-slot.arrange-wireframe {
+  border: 2px dashed var(--accent);
+  border-top: 4px solid var(--slot-accent, var(--accent));
+  background: var(--bg-surface);
+}
+
+.wireframe-overlay {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .wireframe-overlay {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.wireframe-title-label {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.wireframe-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.wireframe-OnTile-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-metro);
+}
+
+.wireframe-OnTile-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.wireframe-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50% !important;
+  border: 2px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 400;
+  transition: background-color 0.1s ease, border-color 0.1s ease, transform 0.08s ease;
+}
+
+.wireframe-OnTile-btn:not(:disabled):hover .wireframe-circle {
+  background: var(--slot-accent, var(--accent));
+  border-color: var(--slot-accent, var(--accent));
+  color: #FFFFFF;
+}
+
+.wireframe-OnTile-btn.danger:not(:disabled):hover .wireframe-circle {
+  background: #A20025;
+  border-color: #A20025;
+  color: #FFFFFF;
+}
+
+.wireframe-OnTile-btn:not(:disabled):active .wireframe-circle {
+  transform: scale(0.92);
+}
+
+.wireframe-label {
+  font-size: 12px;
+  font-weight: 300;
+  text-transform: lowercase;
+  color: var(--text-secondary);
 }
 
 /* ==========================================================================
