@@ -5,6 +5,8 @@
  */
 export default {
   id: "groceries",
+  order: 30,
+  allowMultiple: false,
   name: "grocery list",
   description:
     "Touch-friendly grocery checklist with automatic meal ingredient bundling and quick-add.",
@@ -13,7 +15,16 @@ export default {
   infoText:
     "Touch any item to check it off. Items added automatically from Meal Planner show their source meal underneath.",
   defaultState: {
-    groceries: [],
+    groceries: [
+      { id: "groc-1", name: "Oat milk (2 cartons)", checked: false, fromMeal: null },
+      { id: "groc-2", name: "Honeycrisp apples", checked: false, fromMeal: null },
+      { id: "groc-3", name: "Corn tortillas", checked: false, fromMeal: "Street Tacos & Guacamole" },
+      { id: "groc-4", name: "Avocados (3)", checked: false, fromMeal: "Street Tacos & Guacamole" },
+      { id: "groc-5", name: "Fresh cilantro", checked: true, fromMeal: "Street Tacos & Guacamole" },
+      { id: "groc-6", name: "Wild salmon fillets", checked: false, fromMeal: "Sheet Pan Salmon & Asparagus" },
+      { id: "groc-7", name: "Fresh asparagus bunch", checked: false, fromMeal: "Sheet Pan Salmon & Asparagus" },
+      { id: "groc-8", name: "Sourdough bread", checked: true, fromMeal: null },
+    ],
   },
 
   // Standardized cross-extension event handlers
@@ -113,7 +124,7 @@ export default {
       row.className = "metro-list-item";
       row.style.setProperty("--slot-accent", "#60A917");
       row.innerHTML = `
-        <div class="check-row">
+        <div class="check-row" role="checkbox" aria-checked="${Boolean(item.checked)}" tabindex="0">
           <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>
           <div class="item-text-wrap">
             <span class="item-primary ${item.checked ? "checked-text" : ""}">${escapeHtml(item.name)}</span>
@@ -127,9 +138,17 @@ export default {
         <button class="slot-icon-btn" title="Delete">✕</button>
       `;
 
-      row.querySelector(".check-row").addEventListener("click", () => {
+      const checkRow = row.querySelector(".check-row");
+      const toggleItem = () => {
         item.checked = !item.checked;
         saveState();
+      };
+      checkRow.addEventListener("click", toggleItem);
+      checkRow.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleItem();
+        }
       });
 
       row.querySelector("button").addEventListener("click", () => {

@@ -3,6 +3,8 @@
  */
 export default {
   id: "notes",
+  order: 50,
+  allowMultiple: true,
   name: "family board",
   description:
     "Sample plug-in extension: Quick pinned announcements, Wi-Fi codes, and reminders.",
@@ -10,6 +12,25 @@ export default {
   defaultSize: "half",
   infoText:
     "Pin shared announcements, Wi-Fi passwords, babysitter numbers, and weekend project reminders.",
+  defaultState: {
+    notes: [
+      {
+        id: "note-1",
+        title: "guest wifi",
+        body: "Network: FamilyHub_Guest  |  Pass: metro2026!",
+      },
+      {
+        id: "note-2",
+        title: "babysitter info",
+        body: "Pediatrician: (555) 234-5678. Neighbor Sarah is in #402.",
+      },
+      {
+        id: "note-3",
+        title: "weekend project",
+        body: "Mount touchscreen flush to kitchen pantry wall & hide power cable.",
+      },
+    ],
+  },
 
   renderAddForm(ctx) {
     const { slot, appState, closeDrawer, saveState } = ctx;

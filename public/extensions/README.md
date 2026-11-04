@@ -22,6 +22,13 @@ export default {
   // Unique identifier (used in layout state and settings)
   id: "countdown",
 
+  // Optional: numeric sort order for initial column placement (default: 100)
+  order: 60,
+
+  // Optional: set to true if users can place multiple independent instances of this widget
+  // (each with its own custom title and isolated data). Set to false for singletons.
+  allowMultiple: true,
+
   // Lowercase Metro display title
   name: "trip countdown",
 
@@ -125,7 +132,8 @@ Both `renderAddForm(ctx)` and `renderSlot(ctx)` receive a `ctx` object containin
 | `ctx.uiState` | Local UI state (pivots, drawers, active modes) |
 | `ctx.saveState(toastMsg)` | Persists `appState` to SQLite + `localStorage`, re-renders, and optionally shows a toast |
 | `ctx.closeDrawer()` | Closes this widget's `•••` command drawer |
-| `ctx.renderAll()` | Triggers a full Panorama re-render |
+| `ctx.renderSlotOnly()` | Re-renders only this widget's `.slot-body` in-place while preserving scroll offsets |
+| `ctx.renderAll()` | Triggers a full Panorama re-render (preserving all scroll offsets and input focus) |
 | `ctx.showToast(msg)` | Displays a Metro notification toast |
 | `ctx.escapeHtml(str)` | Safely escapes user strings for HTML templates |
 | `ctx.formatTimeShort(date)` | Formats a `Date` object as lowercase `h:mm am/pm` |

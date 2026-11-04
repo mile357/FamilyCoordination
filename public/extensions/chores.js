@@ -3,6 +3,8 @@
  */
 export default {
   id: "chores",
+  order: 40,
+  allowMultiple: true,
   name: "daily chores",
   description:
     "Sample plug-in extension: Family daily responsibilities and quick check-offs.",
@@ -10,6 +12,14 @@ export default {
   defaultSize: "half",
   infoText:
     "Assign daily family responsibilities. Tip: use 'Name: Task' (e.g. 'Leo: Walk dog') when adding a chore.",
+  defaultState: {
+    chores: [
+      { id: "chore-1", title: "Unload dishwasher before school", assignee: "Maya", done: true },
+      { id: "chore-2", title: "Take out recycling & compost bins", assignee: "Leo", done: false },
+      { id: "chore-3", title: "Feed & walk Barnaby", assignee: "Maya", done: false },
+      { id: "chore-4", title: "Pack soccer shin guards & water bottle", assignee: "Leo", done: false },
+    ],
+  },
 
   renderAddForm(ctx) {
     const { slot, appState, closeDrawer, saveState } = ctx;
@@ -63,7 +73,7 @@ export default {
       row.className = "metro-list-item";
       row.style.setProperty("--slot-accent", "#FA6800");
       row.innerHTML = `
-        <div class="check-row">
+        <div class="check-row" role="checkbox" aria-checked="${Boolean(c.done)}" tabindex="0">
           <div class="metro-checkbox ${c.done ? "checked" : ""}">${c.done ? "✓" : ""}</div>
           <div class="item-text-wrap">
             <span class="item-primary ${c.done ? "checked-text" : ""}">${escapeHtml(c.title)}</span>
@@ -73,9 +83,17 @@ export default {
         <button class="slot-icon-btn">✕</button>
       `;
 
-      row.querySelector(".check-row").addEventListener("click", () => {
+      const checkRow = row.querySelector(".check-row");
+      const toggleChore = () => {
         c.done = !c.done;
         saveState();
+      };
+      checkRow.addEventListener("click", toggleChore);
+      checkRow.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleChore();
+        }
       });
 
       row.querySelector("button").addEventListener("click", () => {

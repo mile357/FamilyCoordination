@@ -12,6 +12,15 @@ function dispatchIngredients(ctx, mealName, ingredients) {
   return responses.reduce((sum, r) => sum + ((r.result && r.result.added) || 0), 0);
 }
 
+function getCatalogIngredients(entry) {
+  if (!entry) return [];
+  return Array.isArray(entry.ingredients)
+    ? entry.ingredients
+    : Array.isArray(entry.LinkedIngredients)
+    ? entry.LinkedIngredients
+    : [];
+}
+
 function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList) {
   const { appState, saveState } = ctx;
   if (!Array.isArray(appState.mealCatalog)) appState.mealCatalog = [];
@@ -24,19 +33,18 @@ function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList) {
   const finalIngredients =
     ingredientsList && ingredientsList.length > 0
       ? ingredientsList
-      : catalogEntry
-      ? catalogEntry.LinkedIngredients
-      : [];
+      : getCatalogIngredients(catalogEntry);
 
   if (catalogEntry) {
     if (finalIngredients.length > 0) {
-      catalogEntry.LinkedIngredients = finalIngredients;
+      catalogEntry.ingredients = finalIngredients;
+      delete catalogEntry.LinkedIngredients;
     }
   } else {
     catalogEntry = {
       id: "meal-cat-" + Date.now(),
       name: mealName,
-      LinkedIngredients: finalIngredients,
+      ingredients: finalIngredients,
     };
     appState.mealCatalog.unshift(catalogEntry);
   }
@@ -62,6 +70,8 @@ function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList) {
 
 export default {
   id: "meals",
+  order: 20,
+  allowMultiple: false,
   name: "meal planner",
   description:
     "Simple family meal list & recipe catalog. Broadcasts meal ingredients to any enabled grocery extension.",
@@ -70,8 +80,82 @@ export default {
   infoText:
     "Add meals to your family plan. Any linked ingredients are automatically broadcast to your Grocery List whenever you add a meal.",
   defaultState: {
-    mealCatalog: [],
-    activeMeals: [],
+    mealCatalog: [
+      {
+        id: "meal-cat-1",
+        name: "Street Tacos & Guacamole",
+        ingredients: [
+          "Corn tortillas",
+          "Avocados (3)",
+          "Fresh cilantro",
+          "Limes (4)",
+          "Cotija cheese",
+          "Flank steak",
+        ],
+      },
+      {
+        id: "meal-cat-2",
+        name: "Sheet Pan Salmon & Asparagus",
+        ingredients: [
+          "Wild salmon fillets",
+          "Fresh asparagus bunch",
+          "Lemon",
+          "Baby potatoes",
+          "Garlic bulbs",
+        ],
+      },
+      {
+        id: "meal-cat-3",
+        name: "Homemade Pesto Pasta",
+        ingredients: [
+          "Fresh basil bunch",
+          "Pine nuts",
+          "Parmigiano Reggiano",
+          "Rigatoni pasta",
+          "Cherry tomatoes",
+        ],
+      },
+      {
+        id: "meal-cat-4",
+        name: "Thai Coconut Curry",
+        ingredients: [
+          "Coconut milk (2 cans)",
+          "Red curry paste",
+          "Firm tofu / Chicken",
+          "Bell peppers",
+          "Jasmine rice",
+        ],
+      },
+    ],
+    activeMeals: [
+      {
+        id: "active-meal-1",
+        catalogId: "meal-cat-1",
+        name: "Street Tacos & Guacamole",
+        note: "With homemade salsa verde",
+        ingredients: [
+          "Corn tortillas",
+          "Avocados (3)",
+          "Fresh cilantro",
+          "Limes (4)",
+          "Cotija cheese",
+          "Flank steak",
+        ],
+      },
+      {
+        id: "active-meal-2",
+        catalogId: "meal-cat-2",
+        name: "Sheet Pan Salmon & Asparagus",
+        note: "Quick weeknight dinner",
+        ingredients: [
+          "Wild salmon fillets",
+          "Fresh asparagus bunch",
+          "Lemon",
+          "Baby potatoes",
+          "Garlic bulbs",
+        ],
+      },
+    ],
   },
 
   renderAddForm(ctx) {
@@ -98,7 +182,7 @@ export default {
         (m) => m.name.toLowerCase() === nameInput.value.trim().toLowerCase()
       );
       if (match) {
-        ingInput.value = match.LinkedIngredients.join(", ");
+        ingInput.value = getCatalogIngredients(match).join(", ");
       }
     });
 
@@ -147,7 +231,7 @@ export default {
           catalog (${mealCatalog.length})
         </button>
       </div>
-      <div id="mealSubContent" style="flex:1; overflow-y:auto;"></div>
+      <div id="mealSubContent" data-scroll-pane="meals-sub" style="flex:1; overflow-y:auto;"></div>
     `;
 
     container.querySelectorAll(".pivot-tab").forEach((btn) => {
@@ -210,6 +294,7 @@ export default {
       list.className = "metro-list";
 
       mealCatalog.forEach((catMeal) => {
+        const catIngs = getCatalogIngredients(catMeal);
         const card = document.createElement("div");
         card.className = "meal-card";
         card.innerHTML = `
@@ -220,14 +305,14 @@ export default {
             </button>
           </div>
           <div class="ingredient-tags">
-            ${(catMeal.LinkedIngredients || [])
+            ${catIngs
               .map((ing) => `<span class="ing-tag">${escapeHtml(ing)}</span>`)
               .join("")}
           </div>
         `;
 
         card.querySelector("button").addEventListener("click", () => {
-          addMealAndBroadcastIngredients(ctx, catMeal.name, catMeal.LinkedIngredients || []);
+          addMealAndBroadcastIngredients(ctx, catMeal.name, catIngs);
           uiState.mealsPivot = "plan";
         });
 

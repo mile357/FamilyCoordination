@@ -1,29 +1,35 @@
 #!/usr/bin/env python3
 """
 Metro Family Hub — Lightweight SQLite + JSON API & Static Server
-Also works alongside the Node/TypeScript Vite setup or standalone on Ubuntu/macOS without npm.
+Runs standalone on Ubuntu Linux or macOS using only the Python standard library.
 """
+import ipaddress
 import json
 import os
 import re
+import socket
 import sqlite3
+import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 PORT = int(os.environ.get("PORT", 8080))
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "hub.db")
-PUBLIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "data", "hub.db")
+PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+
+WEATHER_CACHE = {}
+WEATHER_TTL_SECONDS = 15 * 60  # 15-minute server-side weather cache
+MAX_BODY_BYTES = 2 * 1024 * 1024
 
 
 def get_initial_state():
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    def dt(days_offset, hour, minute=0):
-        d = today + timedelta(days=days_offset)
-        return d.replace(hour=hour, minute=minute).isoformat()
-
+    """
+    Core host shell state. Individual extension metadata, default columns,
+    and seed data live inside each self-contained module in `public/extensions/*.js`.
+    """
     return {
         "settings": {
             "familyName": "family hub",
@@ -32,395 +38,119 @@ def get_initial_state():
             "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
             "kioskMode": False,
         },
-        "extensions": {
-            "calendar": {
-                "id": "calendar",
-                "name": "shared calendar",
-                "description": "Read-only Google & Microsoft calendar sync (2-column view: Today Hour-by-Hour + Next 7 Days Agenda).",
-                "enabled": True,
-                "defaultSize": "double",
-                "accent": "#00ABA9",
-            },
-            "meals": {
-                "id": "meals",
-                "name": "meal planner",
-                "description": "Simple family meal list & recipe catalog. Adding a meal automatically adds its linked ingredients to groceries.",
-                "enabled": True,
-                "defaultSize": "half",
-                "accent": "#A20025",
-            },
-            "groceries": {
-                "id": "groceries",
-                "name": "grocery list",
-                "description": "Touch-friendly grocery checklist with automatic meal ingredient bundling and quick-add.",
-                "enabled": True,
-                "defaultSize": "half",
-                "accent": "#60A917",
-            },
-            "chores": {
-                "id": "chores",
-                "name": "daily chores",
-                "description": "Sample plug-in extension: Family daily responsibilities and quick check-offs.",
-                "enabled": True,
-                "defaultSize": "half",
-                "accent": "#FA6800",
-            },
-            "notes": {
-                "id": "notes",
-                "name": "family board",
-                "description": "Sample plug-in extension: Quick pinned announcements, Wi-Fi codes, and reminders.",
-                "enabled": True,
-                "defaultSize": "half",
-                "accent": "#6A00FF",
-            },
-        },
-        "columns": [
-            {
-                "id": "col-calendar",
-                "slots": [
-                    {"id": "slot-cal", "extensionId": "calendar", "size": "double"},
-                ],
-            },
-            {
-                "id": "col-meals-groceries",
-                "slots": [
-                    {"id": "slot-1", "extensionId": "meals", "size": "half"},
-                    {"id": "slot-2", "extensionId": "groceries", "size": "half"},
-                ],
-            },
-            {
-                "id": "col-chores-notes",
-                "slots": [
-                    {"id": "slot-3", "extensionId": "chores", "size": "half"},
-                    {"id": "slot-4", "extensionId": "notes", "size": "half"},
-                ],
-            },
-        ],
-        "calendars": [
-            {
-                "id": "cal-google-family",
-                "name": "Family Shared",
-                "provider": "google",
-                "color": "#00ABA9",
-                "visible": True,
-                "readOnly": True,
-                "account": "family@gmail.com (Read-Only ICS/OAuth)",
-                "lastSync": "Just now",
-            },
-            {
-                "id": "cal-ms-work",
-                "name": "Parents Work & Travel",
-                "provider": "microsoft",
-                "color": "#1BA1E2",
-                "visible": True,
-                "readOnly": True,
-                "account": "parents@outlook.com (Read-Only Graph/ICS)",
-                "lastSync": "4m ago",
-            },
-            {
-                "id": "cal-google-kids",
-                "name": "Kids School & Sports",
-                "provider": "google",
-                "color": "#FA6800",
-                "visible": True,
-                "readOnly": True,
-                "account": "school- athletics@gmail.com (Read-Only ICS)",
-                "lastSync": "Just now",
-            },
-            {
-                "id": "cal-ms-holidays",
-                "name": "Birthdays & Holidays",
-                "provider": "microsoft",
-                "color": "#D80073",
-                "visible": True,
-                "readOnly": True,
-                "account": "us-holidays@outlook.com (Read-Only)",
-                "lastSync": "1h ago",
-            },
-        ],
-        "events": [
-            # Today's hour-by-hour events
-            {
-                "id": "ev-1",
-                "calendarId": "cal-google-kids",
-                "title": "School Drop-off & Violin Check",
-                "start": dt(0, 8, 0),
-                "end": dt(0, 8, 45),
-                "location": "Oak Creek Elementary",
-            },
-            {
-                "id": "ev-2",
-                "calendarId": "cal-ms-work",
-                "title": "Architecture Design Review",
-                "start": dt(0, 9, 30),
-                "end": dt(0, 10, 30),
-                "location": "Teams / Home Office",
-            },
-            {
-                "id": "ev-3",
-                "calendarId": "cal-google-family",
-                "title": "HVAC Filter Delivery Window",
-                "start": dt(0, 11, 0),
-                "end": dt(0, 13, 0),
-                "location": "Home",
-            },
-            {
-                "id": "ev-4",
-                "calendarId": "cal-ms-work",
-                "title": "Dentist Appointment (Maya)",
-                "start": dt(0, 14, 0),
-                "end": dt(0, 15, 0),
-                "location": "Bright Smile Dental",
-            },
-            {
-                "id": "ev-5",
-                "calendarId": "cal-google-kids",
-                "title": "Soccer Practice — U10 Green",
-                "start": dt(0, 16, 30),
-                "end": dt(0, 18, 0),
-                "location": "Westside Field #3",
-            },
-            {
-                "id": "ev-6",
-                "calendarId": "cal-google-family",
-                "title": "Family Taco Night & Board Games",
-                "start": dt(0, 18, 30),
-                "end": dt(0, 20, 0),
-                "location": "Kitchen",
-            },
-            # Next 7 days events
-            {
-                "id": "ev-7",
-                "calendarId": "cal-google-kids",
-                "title": "Early Release Wednesday",
-                "start": dt(1, 13, 15),
-                "end": dt(1, 14, 0),
-                "location": "Oak Creek Elementary",
-            },
-            {
-                "id": "ev-8",
-                "calendarId": "cal-google-family",
-                "title": "Library Book Return Due",
-                "start": dt(1, 17, 0),
-                "end": dt(1, 17, 30),
-                "location": "Central Branch",
-            },
-            {
-                "id": "ev-9",
-                "calendarId": "cal-ms-work",
-                "title": "Quarterly Planning Offsite",
-                "start": dt(2, 9, 0),
-                "end": dt(2, 16, 0),
-                "location": "Downtown Studio",
-            },
-            {
-                "id": "ev-10",
-                "calendarId": "cal-google-kids",
-                "title": "Swim Lessons",
-                "start": dt(2, 17, 0),
-                "end": dt(2, 18, 0),
-                "location": "Aquatic Center",
-            },
-            {
-                "id": "ev-11",
-                "calendarId": "cal-google-family",
-                "title": "Pizza & Movie Night",
-                "start": dt(3, 18, 30),
-                "end": dt(3, 21, 0),
-                "location": "Living Room",
-            },
-            {
-                "id": "ev-12",
-                "calendarId": "cal-google-kids",
-                "title": "Saturday Morning Soccer Match",
-                "start": dt(4, 9, 0),
-                "end": dt(4, 10, 30),
-                "location": "North Park Pitch 2",
-            },
-            {
-                "id": "ev-13",
-                "calendarId": "cal-ms-holidays",
-                "title": "Grandma's Birthday Dinner",
-                "start": dt(4, 17, 30),
-                "end": dt(4, 20, 30),
-                "location": "Olive & Thyme",
-            },
-            {
-                "id": "ev-14",
-                "calendarId": "cal-google-family",
-                "title": "Farmers Market & Meal Prep",
-                "start": dt(5, 10, 0),
-                "end": dt(5, 12, 0),
-                "location": "Town Square",
-            },
-            {
-                "id": "ev-15",
-                "calendarId": "cal-google-kids",
-                "title": "Science Fair Poster Due",
-                "start": dt(6, 8, 30),
-                "end": dt(6, 9, 30),
-                "location": "Room 204",
-            },
-        ],
-        "mealCatalog": [
-            {
-                "id": "meal-cat-1",
-                "name": "Street Tacos & Guacamole",
-                "LinkedIngredients": [
-                    "Corn tortillas",
-                    "Avocados (3)",
-                    "Fresh cilantro",
-                    "Limes (4)",
-                    "Cotija cheese",
-                    "Flank steak",
-                ],
-            },
-            {
-                "id": "meal-cat-2",
-                "name": "Sheet Pan Salmon & Asparagus",
-                "LinkedIngredients": [
-                    "Wild salmon fillets",
-                    "Fresh asparagus bunch",
-                    "Lemon",
-                    "Baby potatoes",
-                    "Garlic bulbs",
-                ],
-            },
-            {
-                "id": "meal-cat-3",
-                "name": "Homemade Pesto Pasta",
-                "LinkedIngredients": [
-                    "Fresh basil bunch",
-                    "Pine nuts",
-                    "Parmigiano Reggiano",
-                    "Rigatoni pasta",
-                    "Cherry tomatoes",
-                ],
-            },
-            {
-                "id": "meal-cat-4",
-                "name": "Thai Coconut Curry",
-                "LinkedIngredients": [
-                    "Coconut milk (2 cans)",
-                    "Red curry paste",
-                    "Firm tofu / Chicken",
-                    "Bell peppers",
-                    "Jasmine rice",
-                ],
-            },
-        ],
-        "activeMeals": [
-            {
-                "id": "active-meal-1",
-                "catalogId": "meal-cat-1",
-                "name": "Street Tacos & Guacamole",
-                "note": "With homemade salsa verde",
-                "ingredients": [
-                    "Corn tortillas",
-                    "Avocados (3)",
-                    "Fresh cilantro",
-                    "Limes (4)",
-                    "Cotija cheese",
-                    "Flank steak",
-                ],
-            },
-            {
-                "id": "active-meal-2",
-                "catalogId": "meal-cat-2",
-                "name": "Sheet Pan Salmon & Asparagus",
-                "note": "Quick weeknight dinner",
-                "ingredients": [
-                    "Wild salmon fillets",
-                    "Fresh asparagus bunch",
-                    "Lemon",
-                    "Baby potatoes",
-                    "Garlic bulbs",
-                ],
-            },
-        ],
-        "groceries": [
-            {"id": "groc-1", "name": "Oat milk (2 cartons)", "checked": False, "fromMeal": None},
-            {"id": "groc-2", "name": "Honeycrisp apples", "checked": False, "fromMeal": None},
-            {"id": "groc-3", "name": "Corn tortillas", "checked": False, "fromMeal": "Street Tacos & Guacamole"},
-            {"id": "groc-4", "name": "Avocados (3)", "checked": False, "fromMeal": "Street Tacos & Guacamole"},
-            {"id": "groc-5", "name": "Fresh cilantro", "checked": True, "fromMeal": "Street Tacos & Guacamole"},
-            {"id": "groc-6", "name": "Wild salmon fillets", "checked": False, "fromMeal": "Sheet Pan Salmon & Asparagus"},
-            {"id": "groc-7", "name": "Fresh asparagus bunch", "checked": False, "fromMeal": "Sheet Pan Salmon & Asparagus"},
-            {"id": "groc-8", "name": "Sourdough bread", "checked": True, "fromMeal": None},
-        ],
-        "chores": [
-            {"id": "chore-1", "title": "Unload dishwasher before school", "assignee": "Maya", "done": True},
-            {"id": "chore-2", "title": "Take out recycling & compost bins", "assignee": "Leo", "done": False},
-            {"id": "chore-3", "title": "Feed & walk Barnaby", "assignee": "Maya", "done": False},
-            {"id": "chore-4", "title": "Pack soccer shin guards & water bottle", "assignee": "Leo", "done": False},
-        ],
-        "notes": [
-            {
-                "id": "note-1",
-                "title": "guest wifi",
-                "body": "Network: FamilyHub_Guest  |  Pass: metro2026!",
-            },
-            {
-                "id": "note-2",
-                "title": "babysitter info",
-                "body": "Pediatrician: (555) 234-5678. Neighbor Sarah is in #402.",
-            },
-            {
-                "id": "note-3",
-                "title": "weekend project",
-                "body": "Mount touchscreen flush to kitchen pantry wall & hide power cable.",
-            },
-        ],
+        "extensions": {},
+        "columns": [],
     }
 
 
-def init_db():
+def _connect_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY CHECK (id = 1), state_json TEXT NOT NULL, updated_at TEXT NOT NULL)"
-    )
-    cur = conn.execute("SELECT state_json FROM app_state WHERE id = 1")
-    row = cur.fetchone()
-    if not row:
-        initial = get_initial_state()
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+def _now_token():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def init_db():
+    with _connect_db() as conn:
         conn.execute(
-            "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?)",
-            (json.dumps(initial), datetime.now().isoformat()),
+            "CREATE TABLE IF NOT EXISTS app_state ("
+            "id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "state_json TEXT NOT NULL, "
+            "updated_at TEXT NOT NULL)"
         )
-        conn.commit()
-    conn.close()
+        row = conn.execute("SELECT state_json FROM app_state WHERE id = 1").fetchone()
+        if not row:
+            now_iso = _now_token()
+            initial = get_initial_state()
+            initial["_updatedAt"] = now_iso
+            conn.execute(
+                "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?)",
+                (json.dumps(initial), now_iso),
+            )
+            conn.commit()
 
 
 def read_state():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.execute("SELECT state_json FROM app_state WHERE id = 1")
-    row = cur.fetchone()
-    conn.close()
+    with _connect_db() as conn:
+        row = conn.execute(
+            "SELECT state_json, updated_at FROM app_state WHERE id = 1"
+        ).fetchone()
     if row:
-        return json.loads(row[0])
-    return get_initial_state()
+        state = json.loads(row[0])
+        state["_updatedAt"] = row[1]
+        return state
+    initial = get_initial_state()
+    initial["_updatedAt"] = _now_token()
+    return initial
 
 
-def write_state(new_state):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
-        (json.dumps(new_state), datetime.now().isoformat()),
-    )
-    conn.commit()
-    conn.close()
+def write_state(new_state, expected_updated_at=None):
+    """
+    Persist state to SQLite with optional optimistic concurrency check.
+    Returns (saved_ok, latest_state).
+    """
+    now_iso = _now_token()
+    with _connect_db() as conn:
+        row = conn.execute(
+            "SELECT state_json, updated_at FROM app_state WHERE id = 1"
+        ).fetchone()
+        if row and expected_updated_at:
+            current_state = json.loads(row[0])
+            current_updated_at = row[1]
+            # Only trigger conflict if the DB already has initialized columns
+            # and its version token differs from what the client based its edit on.
+            if (
+                current_updated_at != expected_updated_at
+                and current_state.get("columns")
+            ):
+                current_state["_updatedAt"] = current_updated_at
+                return False, current_state
+
+        new_state["_updatedAt"] = now_iso
+        conn.execute(
+            "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
+            (json.dumps(new_state), now_iso),
+        )
+        conn.commit()
+    return True, new_state
+
+
+def _validate_public_ics_url(raw_url):
+    """Ensure calendar feed URL uses http/https and resolves only to public IP addresses (anti-SSRF)."""
+    parsed = urlparse(raw_url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("Invalid calendar URL scheme or host")
+    for *_, sockaddr in socket.getaddrinfo(parsed.hostname, None):
+        ip = ipaddress.ip_address(sockaddr[0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+        ):
+            raise ValueError("Refusing to fetch private or loopback address")
+    return raw_url
+
+
+def _extract_ics_value(line):
+    """Extract property value after property name and optional RFC 5545 parameters."""
+    if ":" not in line:
+        return ""
+    return line.split(":", 1)[1].strip()
 
 
 def _parse_ics_datetime(raw_val):
-    """Parse iCalendar DTSTART/DTEND value into local ISO format string."""
-    val = raw_val.strip()
-    if ":" in val:
-        val = val.split(":", 1)[1].strip()
+    """Parse iCalendar DTSTART/DTEND line into (iso_str, is_all_day)."""
+    val = _extract_ics_value(raw_val)
     # Date-only (all-day event): YYYYMMDD
     if len(val) == 8 and val.isdigit():
-        dt = datetime.strptime(val, "%Y%m%d").replace(hour=8, minute=0)
-        return dt.isoformat()
+        dt = datetime.strptime(val, "%Y%m%d").replace(hour=0, minute=0, second=0)
+        return dt.isoformat(), True
     # Date-time: YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ
     m = re.match(r"^(\d{8})T(\d{4,6})(Z?)$", val)
     if m:
@@ -429,8 +159,8 @@ def _parse_ics_datetime(raw_val):
         dt = datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
         if is_utc == "Z":
             dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
-        return dt.isoformat()
-    return None
+        return dt.isoformat(), False
+    return None, False
 
 
 def fetch_and_parse_ics(ics_url, calendar_id):
@@ -438,12 +168,14 @@ def fetch_and_parse_ics(ics_url, calendar_id):
     req_url = ics_url.strip()
     if req_url.startswith("webcal://"):
         req_url = "https://" + req_url[len("webcal://") :]
+    _validate_public_ics_url(req_url)
+
     req = urllib.request.Request(
         req_url,
         headers={"User-Agent": "MetroFamilyHub/1.0 (Read-Only Calendar Sync)"},
     )
     with urllib.request.urlopen(req, timeout=12) as resp:
-        raw_ics = resp.read().decode("utf-8", errors="replace")
+        raw_ics = resp.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
 
     # Unfold RFC 5545 folded lines
     unfolded = re.sub(r"\r?\n[ \t]", "", raw_ics)
@@ -466,7 +198,12 @@ def fetch_and_parse_ics(ics_url, calendar_id):
                 try:
                     st_dt = datetime.fromisoformat(start_iso)
                     if window_start <= st_dt <= window_end:
-                        end_iso = cur.get("end") or (st_dt + timedelta(hours=1)).isoformat()
+                        is_all_day = bool(cur.get("allDay"))
+                        end_iso = cur.get("end") or (
+                            (st_dt + timedelta(days=1)).isoformat()
+                            if is_all_day
+                            else (st_dt + timedelta(hours=1)).isoformat()
+                        )
                         events.append(
                             {
                                 "id": f"ics-{calendar_id}-{len(events)}-{int(st_dt.timestamp())}",
@@ -474,24 +211,29 @@ def fetch_and_parse_ics(ics_url, calendar_id):
                                 "title": cur.get("title", "Busy"),
                                 "start": start_iso,
                                 "end": end_iso,
+                                "allDay": is_all_day,
                                 "location": cur.get("location", ""),
                             }
                         )
                 except Exception:
                     pass
         elif in_event:
-            if line.startswith("SUMMARY"):
-                cur["title"] = line.split(":", 1)[1].strip().replace("\\,", ",").replace("\\n", " ") if ":" in line else ""
-            elif line.startswith("LOCATION"):
-                cur["location"] = line.split(":", 1)[1].strip().replace("\\,", ",") if ":" in line else ""
-            elif line.startswith("DTSTART"):
-                parsed = _parse_ics_datetime(line)
-                if parsed:
-                    cur["start"] = parsed
-            elif line.startswith("DTEND"):
-                parsed = _parse_ics_datetime(line)
-                if parsed:
-                    cur["end"] = parsed
+            prop_name = line.split(":", 1)[0].split(";", 1)[0].strip().upper()
+            if prop_name == "SUMMARY":
+                cur["title"] = (
+                    _extract_ics_value(line).replace("\\,", ",").replace("\\n", " ")
+                )
+            elif prop_name == "LOCATION":
+                cur["location"] = _extract_ics_value(line).replace("\\,", ",")
+            elif prop_name == "DTSTART":
+                parsed_iso, is_all_day = _parse_ics_datetime(line)
+                if parsed_iso:
+                    cur["start"] = parsed_iso
+                    cur["allDay"] = is_all_day
+            elif prop_name == "DTEND":
+                parsed_iso, _ = _parse_ics_datetime(line)
+                if parsed_iso:
+                    cur["end"] = parsed_iso
 
     return events
 
@@ -539,7 +281,16 @@ def _resolve_coordinates(location_query):
 
 
 def fetch_weather_for_zip(zip_code):
-    """Resolve ZIP code and fetch current, min, max temp + precipitation probability."""
+    """Resolve ZIP/location and fetch current, min, max temp + precip with a 15-minute cache."""
+    cache_key = (zip_code or "").strip().lower()
+    if not cache_key:
+        return None
+
+    now_ts = time.time()
+    cached = WEATHER_CACHE.get(cache_key)
+    if cached and (now_ts - cached["ts"] < WEATHER_TTL_SECONDS):
+        return cached["data"]
+
     loc = _resolve_coordinates(zip_code)
     if not loc:
         return None
@@ -567,7 +318,6 @@ def fetch_weather_for_zip(zip_code):
         min_f = round(min_list[0])
         max_f = round(max_list[0])
 
-        # Determine if rest of day is trending warmer (toward high) or cooler (toward min)
         hourly_temps = hourly.get("temperature_2m") or []
         now_hr = min(datetime.now().hour, max(len(hourly_temps) - 1, 0))
         future_temps = hourly_temps[now_hr : now_hr + 6] if hourly_temps else []
@@ -583,21 +333,20 @@ def fetch_weather_for_zip(zip_code):
                 daily_probs = daily.get("precipitation_probability_max") or [0]
                 precip = daily_probs[0]
 
-        # Minimalist flat geometric Metro weather symbol based on WMO weather code
         if wmo == 0:
-            icon = "☀"
+            icon = "☀\uFE0E"
         elif wmo in (1, 2):
-            icon = "⛅"
+            icon = "⛅\uFE0E"
         elif wmo in (3, 45, 48):
-            icon = "☁"
+            icon = "☁\uFE0E"
         elif wmo in (71, 73, 75, 77, 85, 86):
-            icon = "❄"
+            icon = "❄\uFE0E"
         elif wmo in (95, 96, 99):
-            icon = "⚡"
+            icon = "⚡\uFE0E"
         else:
-            icon = "☂"
+            icon = "☂\uFE0E"
 
-        return {
+        result = {
             "tempF": temp_f,
             "minF": min(min_f, temp_f),
             "maxF": max(max_f, temp_f),
@@ -607,8 +356,10 @@ def fetch_weather_for_zip(zip_code):
             "weatherCode": wmo,
             "location": loc["name"],
         }
+        WEATHER_CACHE[cache_key] = {"ts": now_ts, "data": result}
+        return result
     except Exception:
-        return None
+        return cached["data"] if cached else None
 
 
 class HubRequestHandler(SimpleHTTPRequestHandler):
@@ -632,127 +383,98 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _handle_weather(self, parsed):
+        qs = parse_qs(parsed.query)
+        zip_code = (qs.get("zip") or [""])[0].strip()
+        if not zip_code:
+            st = read_state()
+            zip_code = (st.get("settings") or {}).get("zipCode", "98052")
+        wx = fetch_weather_for_zip(zip_code)
+        if wx:
+            self._send_json({"ok": True, "weather": wx})
+        else:
+            self._send_json(
+                {"ok": False, "error": f"Could not fetch live weather for {zip_code}"},
+                status=502,
+            )
+
+    def _handle_sync_calendars(self):
+        try:
+            state = read_state()
+            synced_feeds = 0
+            for cal in state.get("calendars", []):
+                ics_url = cal.get("icsUrl", "").strip()
+                if ics_url.startswith(("http://", "https://", "webcal://")):
+                    feed_events = fetch_and_parse_ics(ics_url, cal["id"])
+                    state["events"] = [
+                        ev for ev in state.get("events", []) if ev.get("calendarId") != cal["id"]
+                    ] + feed_events
+                    cal["lastSync"] = datetime.now().strftime("%-I:%M %p").lower()
+                    synced_feeds += 1
+            _, saved_state = write_state(state)
+            self._send_json({"ok": True, "syncedFeeds": synced_feeds, "state": saved_state})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, status=400)
+
+    def _handle_reset(self):
+        initial = get_initial_state()
+        _, saved_state = write_state(initial)
+        self._send_json({"ok": True, "state": saved_state})
+
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/extensions":
             ext_dir = os.path.join(PUBLIC_DIR, "extensions")
-            core_order = ["calendar.js", "meals.js", "groceries.js", "chores.js", "notes.js"]
             found = []
             if os.path.isdir(ext_dir):
                 for fname in sorted(os.listdir(ext_dir)):
                     if fname.endswith(".js") and not fname.startswith(("_", ".")):
                         found.append(fname)
-            ordered = [f for f in core_order if f in found] + [
-                f for f in found if f not in core_order
-            ]
-            self._send_json({"ok": True, "files": ordered})
+            self._send_json({"ok": True, "files": found})
             return
+
         if parsed.path == "/api/state":
             self._send_json(read_state())
             return
-        if parsed.path == "/api/sync-calendars":
-            try:
-                state = read_state()
-                synced_feeds = 0
-                for cal in state.get("calendars", []):
-                    ics_url = cal.get("icsUrl", "").strip()
-                    if ics_url.startswith(("http://", "https://", "webcal://")):
-                        feed_events = fetch_and_parse_ics(ics_url, cal["id"])
-                        # Replace events for this calendarId with freshly synced read-only feed events
-                        state["events"] = [
-                            ev for ev in state.get("events", []) if ev.get("calendarId") != cal["id"]
-                        ] + feed_events
-                        cal["lastSync"] = datetime.now().strftime("%-I:%M %p").lower()
-                        synced_feeds += 1
-                write_state(state)
-                self._send_json({"ok": True, "syncedFeeds": synced_feeds, "state": state})
-            except Exception as e:
-                self._send_json({"ok": False, "error": str(e)}, status=400)
-            return
 
         if parsed.path == "/api/weather":
-            qs = parse_qs(parsed.query)
-            zip_code = (qs.get("zip") or [""])[0].strip()
-            if not zip_code:
-                st = read_state()
-                zip_code = (st.get("settings") or {}).get("zipCode", "98052")
-            wx = fetch_weather_for_zip(zip_code)
-            if wx:
-                self._send_json({"ok": True, "weather": wx})
-            else:
-                self._send_json(
-                    {
-                        "ok": False,
-                        "error": f"Could not fetch live weather for {zip_code}",
-                    },
-                    status=502,
-                )
+            self._handle_weather(parsed)
             return
 
-        if parsed.path == "/api/reset":
-            initial = get_initial_state()
-            write_state(initial)
-            self._send_json(initial)
-            return
         return super().do_GET()
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
+        length = min(int(self.headers.get("Content-Length", 0)), MAX_BODY_BYTES)
         body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
 
         if parsed.path == "/api/state":
             try:
-                new_state = json.loads(body)
-                write_state(new_state)
-                self._send_json({"ok": True, "state": new_state})
+                payload = json.loads(body)
+                expected_updated_at = self.headers.get("X-Expected-Updated-At") or payload.get("_expectedUpdatedAt")
+                payload.pop("_expectedUpdatedAt", None)
+                saved_ok, latest_state = write_state(payload, expected_updated_at=expected_updated_at)
+                if not saved_ok:
+                    self._send_json(
+                        {"ok": False, "conflict": True, "state": latest_state},
+                        status=409,
+                    )
+                    return
+                self._send_json({"ok": True, "state": latest_state})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             return
 
         if parsed.path == "/api/sync-calendars":
-            try:
-                state = read_state()
-                synced_feeds = 0
-                for cal in state.get("calendars", []):
-                    ics_url = cal.get("icsUrl", "").strip()
-                    if ics_url.startswith(("http://", "https://", "webcal://")):
-                        feed_events = fetch_and_parse_ics(ics_url, cal["id"])
-                        # Replace events for this calendarId with freshly synced read-only feed events
-                        state["events"] = [
-                            ev for ev in state.get("events", []) if ev.get("calendarId") != cal["id"]
-                        ] + feed_events
-                        cal["lastSync"] = datetime.now().strftime("%-I:%M %p").lower()
-                        synced_feeds += 1
-                write_state(state)
-                self._send_json({"ok": True, "syncedFeeds": synced_feeds, "state": state})
-            except Exception as e:
-                self._send_json({"ok": False, "error": str(e)}, status=400)
+            self._handle_sync_calendars()
             return
 
         if parsed.path == "/api/weather":
-            qs = parse_qs(parsed.query)
-            zip_code = (qs.get("zip") or [""])[0].strip()
-            if not zip_code:
-                st = read_state()
-                zip_code = (st.get("settings") or {}).get("zipCode", "98052")
-            wx = fetch_weather_for_zip(zip_code)
-            if wx:
-                self._send_json({"ok": True, "weather": wx})
-            else:
-                self._send_json(
-                    {
-                        "ok": False,
-                        "error": f"Could not fetch live weather for {zip_code}",
-                    },
-                    status=502,
-                )
+            self._handle_weather(parsed)
             return
 
         if parsed.path == "/api/reset":
-            initial = get_initial_state()
-            write_state(initial)
-            self._send_json({"ok": True, "state": initial})
+            self._handle_reset()
             return
 
         self._send_json({"ok": False, "error": "Not found"}, status=404)
@@ -760,9 +482,11 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     init_db()
-    server = HTTPServer(("0.0.0.0", PORT), HubRequestHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), HubRequestHandler)
     print(f"Metro Family Hub running on http://localhost:{PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        pass
+        print("\nShutting down Metro Family Hub...")
+    finally:
+        server.server_close()

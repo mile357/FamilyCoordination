@@ -3,8 +3,190 @@
  * Left Pane: Today's Hour-by-Hour Timeline
  * Right Pane: Next 7 Days Agenda
  */
+function buildInitialCalendarState() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dt = (daysOffset, hour, minute = 0) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + daysOffset);
+    d.setHours(hour, minute, 0, 0);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  };
+
+  return {
+    calendars: [
+      {
+        id: "cal-google-family",
+        name: "Family Shared",
+        provider: "google",
+        color: "#00ABA9",
+        visible: true,
+        readOnly: true,
+        account: "family@gmail.com (Read-Only ICS/OAuth)",
+        lastSync: "Just now",
+      },
+      {
+        id: "cal-ms-work",
+        name: "Parents Work & Travel",
+        provider: "microsoft",
+        color: "#1BA1E2",
+        visible: true,
+        readOnly: true,
+        account: "parents@outlook.com (Read-Only Graph/ICS)",
+        lastSync: "4m ago",
+      },
+      {
+        id: "cal-google-kids",
+        name: "Kids School & Sports",
+        provider: "google",
+        color: "#FA6800",
+        visible: true,
+        readOnly: true,
+        account: "school-athletics@gmail.com (Read-Only ICS)",
+        lastSync: "Just now",
+      },
+      {
+        id: "cal-ms-holidays",
+        name: "Birthdays & Holidays",
+        provider: "microsoft",
+        color: "#D80073",
+        visible: true,
+        readOnly: true,
+        account: "us-holidays@outlook.com (Read-Only)",
+        lastSync: "1h ago",
+      },
+    ],
+    events: [
+      {
+        id: "ev-1",
+        calendarId: "cal-google-kids",
+        title: "School Drop-off & Violin Check",
+        start: dt(0, 8, 0),
+        end: dt(0, 8, 45),
+        location: "Oak Creek Elementary",
+      },
+      {
+        id: "ev-2",
+        calendarId: "cal-ms-work",
+        title: "Architecture Design Review",
+        start: dt(0, 9, 30),
+        end: dt(0, 10, 30),
+        location: "Teams / Home Office",
+      },
+      {
+        id: "ev-3",
+        calendarId: "cal-google-family",
+        title: "HVAC Filter Delivery Window",
+        start: dt(0, 11, 0),
+        end: dt(0, 13, 0),
+        location: "Home",
+      },
+      {
+        id: "ev-4",
+        calendarId: "cal-ms-work",
+        title: "Dentist Appointment (Maya)",
+        start: dt(0, 14, 0),
+        end: dt(0, 15, 0),
+        location: "Bright Smile Dental",
+      },
+      {
+        id: "ev-5",
+        calendarId: "cal-google-kids",
+        title: "Soccer Practice — U10 Green",
+        start: dt(0, 16, 30),
+        end: dt(0, 18, 0),
+        location: "Westside Field #3",
+      },
+      {
+        id: "ev-6",
+        calendarId: "cal-google-family",
+        title: "Family Taco Night & Board Games",
+        start: dt(0, 18, 30),
+        end: dt(0, 20, 0),
+        location: "Kitchen",
+      },
+      {
+        id: "ev-7",
+        calendarId: "cal-google-kids",
+        title: "Early Release Wednesday",
+        start: dt(1, 13, 15),
+        end: dt(1, 14, 0),
+        location: "Oak Creek Elementary",
+      },
+      {
+        id: "ev-8",
+        calendarId: "cal-google-family",
+        title: "Library Book Return Due",
+        start: dt(1, 17, 0),
+        end: dt(1, 17, 30),
+        location: "Central Branch",
+      },
+      {
+        id: "ev-9",
+        calendarId: "cal-ms-work",
+        title: "Quarterly Planning Offsite",
+        start: dt(2, 9, 0),
+        end: dt(2, 16, 0),
+        location: "Downtown Studio",
+      },
+      {
+        id: "ev-10",
+        calendarId: "cal-google-kids",
+        title: "Swim Lessons",
+        start: dt(2, 17, 0),
+        end: dt(2, 18, 0),
+        location: "Aquatic Center",
+      },
+      {
+        id: "ev-11",
+        calendarId: "cal-google-family",
+        title: "Pizza & Movie Night",
+        start: dt(3, 18, 30),
+        end: dt(3, 21, 0),
+        location: "Living Room",
+      },
+      {
+        id: "ev-12",
+        calendarId: "cal-google-kids",
+        title: "Saturday Morning Soccer Match",
+        start: dt(4, 9, 0),
+        end: dt(4, 10, 30),
+        location: "North Park Pitch 2",
+      },
+      {
+        id: "ev-13",
+        calendarId: "cal-ms-holidays",
+        title: "Grandma's Birthday Dinner",
+        start: dt(4, 17, 30),
+        end: dt(4, 20, 30),
+        location: "Olive & Thyme",
+      },
+      {
+        id: "ev-14",
+        calendarId: "cal-google-family",
+        title: "Farmers Market & Meal Prep",
+        start: dt(5, 10, 0),
+        end: dt(5, 12, 0),
+        location: "Town Square",
+      },
+      {
+        id: "ev-15",
+        calendarId: "cal-google-kids",
+        title: "Science Fair Poster Due",
+        start: dt(6, 8, 30),
+        end: dt(6, 9, 30),
+        location: "Room 204",
+      },
+    ],
+  };
+}
+
 export default {
   id: "calendar",
+  order: 10,
+  allowMultiple: false,
   name: "shared calendar",
   description:
     "Read-only Google & Microsoft calendar sync (2-column view: Today Hour-by-Hour + Next 7 Days Agenda).",
@@ -14,6 +196,7 @@ export default {
   customHeaderTitles: ["today", "next 7 days"],
   infoText:
     "Read-only 2-column view of Today (hour-by-hour) and the Next 7 Days. Toggle calendar feeds or connect a new read-only .ics feed below.",
+  defaultState: buildInitialCalendarState,
 
   renderAddForm(ctx) {
     const { slot, appState, saveState, renderAll, showToast, escapeHtml } = ctx;
@@ -122,11 +305,58 @@ export default {
   },
 
   renderSlot(ctx) {
-    const { appState, escapeHtml, formatTimeShort } = ctx;
+    const { appState, escapeHtml, formatTimeShort, sanitizeColor } = ctx;
+    const safeColor = (val, fallback) =>
+      typeof sanitizeColor === "function" ? sanitizeColor(val, fallback) : val || fallback;
+
     const visibleCalIds = new Set(
       (appState.calendars || []).filter((c) => c.visible).map((c) => c.id)
     );
     const calMap = new Map((appState.calendars || []).map((c) => [c.id, c]));
+
+    // Pre-bucket all visible events by local date key ("YYYY-MM-DD") in a single pass
+    const dateKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const eventsByDate = new Map();
+
+    for (const ev of appState.events || []) {
+      if (!visibleCalIds.has(ev.calendarId)) continue;
+      const startDt = new Date(ev.start);
+      if (isNaN(startDt.getTime())) continue;
+      const endDt = new Date(ev.end);
+      const key = dateKey(startDt);
+      if (!eventsByDate.has(key)) {
+        eventsByDate.set(key, []);
+      }
+      eventsByDate.get(key).push({ ev, startDt, endDt });
+    }
+
+    for (const bucket of eventsByDate.values()) {
+      bucket.sort((a, b) => {
+        if (Boolean(a.ev.allDay) !== Boolean(b.ev.allDay)) {
+          return a.ev.allDay ? -1 : 1;
+        }
+        return a.startDt - b.startDt;
+      });
+    }
+
+    const renderEventTile = (entry, fallbackColor, extraStyle = "") => {
+      const { ev, startDt, endDt } = entry;
+      const cal = calMap.get(ev.calendarId);
+      const color = safeColor(cal && cal.color, fallbackColor);
+      const timeLabel = ev.allDay
+        ? "all day"
+        : `${formatTimeShort(startDt)} – ${formatTimeShort(endDt)}`;
+      return `
+        <div class="metro-event-tile" style="--ev-color: ${color}; ${extraStyle}">
+          <div class="ev-time">${timeLabel}</div>
+          <div class="ev-title">${escapeHtml(ev.title)}</div>
+          <div class="ev-meta">
+            <span>${escapeHtml(ev.location || "")}</span>
+            <span>${escapeHtml(cal ? cal.name : "")}</span>
+          </div>
+        </div>
+      `;
+    };
 
     const grid = document.createElement("div");
     grid.className = "double-split-grid";
@@ -139,15 +369,27 @@ export default {
 
     const now = new Date();
     const currentHour = now.getHours();
-    const todayEvents = (appState.events || []).filter((ev) => {
-      if (!visibleCalIds.has(ev.calendarId)) return false;
-      const d = new Date(ev.start);
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    });
+    const todayEntries = eventsByDate.get(dateKey(now)) || [];
+    const todayAllDay = todayEntries.filter((x) => x.ev.allDay);
+    const todayByHour = new Map();
+    for (const entry of todayEntries) {
+      if (entry.ev.allDay) continue;
+      const hr = entry.startDt.getHours();
+      if (!todayByHour.has(hr)) todayByHour.set(hr, []);
+      todayByHour.get(hr).push(entry);
+    }
+
+    if (todayAllDay.length > 0) {
+      const allDayRow = document.createElement("div");
+      allDayRow.className = "hour-row";
+      allDayRow.innerHTML = `
+        <div class="hour-label">all day</div>
+        <div class="hour-events">${todayAllDay
+          .map((e) => renderEventTile(e, "#00ABA9"))
+          .join("")}</div>
+      `;
+      timeline.appendChild(allDayRow);
+    }
 
     for (let hour = 6; hour <= 22; hour++) {
       const row = document.createElement("div");
@@ -161,23 +403,8 @@ export default {
           ? "12 pm"
           : `${hour - 12} pm`;
 
-      const matching = todayEvents.filter((ev) => new Date(ev.start).getHours() === hour);
-      const eventsHtml = matching
-        .map((ev) => {
-          const cal = calMap.get(ev.calendarId);
-          const color = cal ? cal.color : "#00ABA9";
-          return `
-            <div class="metro-event-tile" style="--ev-color: ${color}">
-              <div class="ev-time">${formatTimeShort(new Date(ev.start))} – ${formatTimeShort(new Date(ev.end))}</div>
-              <div class="ev-title">${escapeHtml(ev.title)}</div>
-              <div class="ev-meta">
-                <span>${escapeHtml(ev.location || "")}</span>
-                <span>${escapeHtml(cal ? cal.name : "")}</span>
-              </div>
-            </div>
-          `;
-        })
-        .join("");
+      const matching = todayByHour.get(hour) || [];
+      const eventsHtml = matching.map((e) => renderEventTile(e, "#00ABA9")).join("");
 
       row.innerHTML = `
         <div class="hour-label">${label}</div>
@@ -208,39 +435,16 @@ export default {
         .toLocaleDateString("en-US", { month: "short", day: "numeric" })
         .toLowerCase();
 
-      const dayEvents = (appState.events || [])
-        .filter((ev) => {
-          if (!visibleCalIds.has(ev.calendarId)) return false;
-          const d = new Date(ev.start);
-          return (
-            d.getFullYear() === dayDate.getFullYear() &&
-            d.getMonth() === dayDate.getMonth() &&
-            d.getDate() === dayDate.getDate()
-          );
-        })
-        .sort((a, b) => new Date(a.start) - new Date(b.start));
+      const dayEntries = eventsByDate.get(dateKey(dayDate)) || [];
 
       const group = document.createElement("div");
       group.className = "agenda-day-group";
 
       const eventsHtml =
-        dayEvents.length === 0
+        dayEntries.length === 0
           ? `<div class="agenda-empty">no scheduled events</div>`
-          : dayEvents
-              .map((ev) => {
-                const cal = calMap.get(ev.calendarId);
-                const color = cal ? cal.color : "#1BA1E2";
-                return `
-                  <div class="metro-event-tile" style="--ev-color: ${color}; margin-bottom: 6px;">
-                    <div class="ev-time">${formatTimeShort(new Date(ev.start))} – ${formatTimeShort(new Date(ev.end))}</div>
-                    <div class="ev-title">${escapeHtml(ev.title)}</div>
-                    <div class="ev-meta">
-                      <span>${escapeHtml(ev.location || "")}</span>
-                      <span>${escapeHtml(cal ? cal.name : "")}</span>
-                    </div>
-                  </div>
-                `;
-              })
+          : dayEntries
+              .map((e) => renderEventTile(e, "#1BA1E2", "margin-bottom: 6px;"))
               .join("");
 
       group.innerHTML = `
