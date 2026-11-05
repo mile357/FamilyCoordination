@@ -1065,10 +1065,10 @@ html, body {
   color: #FFFFFF;
 }
 
-@keyframes metroPivotSlide {
+@keyframes metroPivotSlideIn {
   from {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateX(34px);
   }
   to {
     opacity: 1;
@@ -1076,8 +1076,28 @@ html, body {
   }
 }
 
+@keyframes metroPivotSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+.chore-pivot-leaving {
+  animation: metroPivotSlideOut 0.28s cubic-bezier(0.4, 0, 0.8, 0.6) forwards;
+  pointer-events: none;
+}
+
 .chore-pivot-animate {
-  animation: metroPivotSlide 0.32s cubic-bezier(0.1, 0.9, 0.2, 1);
+  animation: metroPivotSlideIn 0.68s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+.chore-pivot-animate .metro-list-item {
+  animation: metroPivotSlideIn 0.68s cubic-bezier(0.1, 0.9, 0.2, 1) both;
 }
 
 /* ==========================================================================

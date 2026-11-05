@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "31";
+const ASSET_VERSION = "33";
 
 const METRO_ACCENTS = [
   { name: "Teal", hex: "#00ABA9" },
@@ -1486,7 +1486,7 @@ function renderAll() {
 // FLYOUT DRAWER: GLOBAL SETTINGS, COLUMN BUILDER & WIDGET TRASH CAN
 // ============================================================================
 function openFlyout(mode, pivot = null) {
-  if (mode === "extensions" || mode === "appearance") {
+  if (mode === "extensions" || mode === "appearance" || mode === "system") {
     uiState.flyoutMode = "settings";
     uiState.settingsPivot = mode;
   } else {
@@ -1605,8 +1605,9 @@ function renderFlyoutContent() {
   }
 
   if (mode === "settings") {
-    const activeTab =
-      uiState.settingsPivot === "appearance" ? "appearance" : "extensions";
+    const activeTab = ["extensions", "appearance", "system"].includes(uiState.settingsPivot)
+      ? uiState.settingsPivot
+      : "extensions";
     const isDark = (appState.settings.theme || "dark") === "dark";
 
     panel.innerHTML = `
@@ -1621,6 +1622,9 @@ function renderFlyoutContent() {
         </button>
         <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:22px;">
           appearance
+        </button>
+        <button class="pivot-tab ${activeTab === "system" ? "active" : ""}" data-tab="system" style="font-size:22px;">
+          system
         </button>
       </div>
 
@@ -1734,11 +1738,6 @@ function renderFlyoutContent() {
             <button class="metro-btn accent" id="btnSaveHubName">rename</button>
           </div>
         </div>
-
-        <div class="flyout-section">
-          <div class="flyout-section-title">system</div>
-          <button class="metro-btn subtle" id="btnResetDemo">reset poc demo data</button>
-        </div>
       `;
 
       const themeSwitch = tabBody.querySelector("#toggleThemeSwitch");
@@ -1788,20 +1787,148 @@ function renderFlyoutContent() {
           saveState("Updated hub title");
         }
       });
+    } else if (activeTab === "system") {
+      tabBody.innerHTML = `
+        <div class="flyout-section">
+          <div class="flyout-section-title">backup &amp; restore</div>
+          <div class="extension-card" style="--ext-color: var(--accent);">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">backup hub data</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                Download all widgets, items, layout, and settings to a JSON file.
+              </div>
+            </div>
+            <button class="metro-btn accent" id="btnSystemBackup">backup</button>
+          </div>
 
-      tabBody.querySelector("#btnResetDemo").addEventListener("click", async () => {
+          <div class="extension-card" style="--ext-color: var(--accent);">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">restore from backup</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                Upload a previously saved JSON backup file and restore it to the server.
+              </div>
+            </div>
+            <button class="metro-btn" id="btnSystemRestore">restore</button>
+            <input type="file" id="systemRestoreFileInput" accept=".json,application/json" style="display:none;" />
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">data presets</div>
+          <div class="extension-card" style="--ext-color: #60A917;">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">load demo data</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                Populate all widgets with sample POC family events, meals, groceries, chores, and notes.
+              </div>
+            </div>
+            <button class="metro-btn" id="btnSystemLoadDemo">load demo</button>
+          </div>
+
+          <div class="extension-card" style="--ext-color: #A20025;">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">clear all data</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                Remove all items across every widget (events, meals, groceries, chores, notes, and trash) while keeping your layout.
+              </div>
+            </div>
+            <button class="metro-btn subtle" style="border-color:#A20025; color:#FF6B8B;" id="btnSystemClear">clear</button>
+          </div>
+        </div>
+      `;
+
+      tabBody.querySelector("#btnSystemBackup").addEventListener("click", () => {
+        const exportCopy = JSON.parse(JSON.stringify(appState || {}));
+        delete exportCopy._lanOrigin;
+        const dateTag = new Date().toISOString().slice(0, 10);
+        const blob = new Blob([JSON.stringify(exportCopy, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `family-hub-backup-${dateTag}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast("Downloaded backup file");
+      });
+
+      const restoreFileInput = tabBody.querySelector("#systemRestoreFileInput");
+      tabBody.querySelector("#btnSystemRestore").addEventListener("click", () => {
+        restoreFileInput.value = "";
+        restoreFileInput.click();
+      });
+
+      restoreFileInput.addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("Invalid backup format");
+          }
+          const prevLanOrigin = appState && appState._lanOrigin;
+          appState = parsed;
+          if (prevLanOrigin) appState._lanOrigin = prevLanOrigin;
+          delete appState._updatedAt;
+          syncExtensionsWithAppState();
+          localStorage.setItem("metro_family_hub_state", JSON.stringify(appState));
+          applyThemeAndAccent();
+          renderAll();
+          refreshWeather();
+          await persistStateToServer();
+          showToast("Restored hub from backup file");
+        } catch (err) {
+          showToast("Invalid backup JSON file");
+        }
+      });
+
+      tabBody.querySelector("#btnSystemLoadDemo").addEventListener("click", async () => {
         const res = await fetch("/api/reset", { method: "POST" });
         if (res.ok) {
           const data = await res.json();
           appState = data.state;
           syncExtensionsWithAppState();
           snapshotSyncedState(appState);
+          localStorage.setItem("metro_family_hub_state", JSON.stringify(appState));
+          localStorage.removeItem("metro_pocket_groceries_v1");
+          localStorage.removeItem("metro_pocket_dirty_v1");
           applyThemeAndAccent();
           renderAll();
           refreshWeather();
           await persistStateToServer();
-          showToast("Demo data restored to defaults");
+          showToast("Loaded POC demo data");
         }
+      });
+
+      tabBody.querySelector("#btnSystemClear").addEventListener("click", async () => {
+        for (const [, plugin] of ExtensionRegistry.entries()) {
+          const defaults = getPluginDefaultState(plugin);
+          for (const [key, val] of Object.entries(defaults)) {
+            if (Array.isArray(val)) {
+              appState[key] =
+                key === "calendars"
+                  ? [{ id: "cal-family", name: "Family", color: "#00ABA9", icsUrl: "", lastSync: "local" }]
+                  : [];
+            }
+          }
+        }
+        if (appState.slotData && typeof appState.slotData === "object") {
+          for (const slotBucket of Object.values(appState.slotData)) {
+            if (slotBucket && typeof slotBucket === "object") {
+              for (const [k, v] of Object.entries(slotBucket)) {
+                if (Array.isArray(v)) slotBucket[k] = [];
+              }
+            }
+          }
+        }
+        appState.trashedWidgets = [];
+        localStorage.removeItem("metro_pocket_groceries_v1");
+        localStorage.removeItem("metro_pocket_dirty_v1");
+        await saveState("Cleared all hub data");
       });
     }
   } else if (mode === "add-column" || mode === "fill-half") {

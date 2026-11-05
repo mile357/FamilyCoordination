@@ -26,9 +26,43 @@ function getSlotUi(slotId) {
       pivot: "checklist", // "checklist" | "one-off"
       editingChoreId: null,
       animatePivot: false,
+      transitioning: false,
+      nextRotateAt: 0,
     });
   }
   return slotUiMap.get(slotId);
+}
+
+function switchPivotAnimated(slotId, nextPivot, rerenderSlot) {
+  const ui = getSlotUi(slotId);
+  if (ui.pivot === nextPivot || ui.transitioning) return;
+
+  const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(slotId)}"]`);
+  const listEl = slotEl ? slotEl.querySelector(`#choreList_${CSS.escape(slotId)}`) : null;
+
+  if (!listEl) {
+    ui.pivot = nextPivot;
+    ui.editingChoreId = null;
+    ui.animatePivot = true;
+    rerenderSlot();
+    return;
+  }
+
+  ui.transitioning = true;
+  // Highlight the target tab immediately as the outgoing list glides out
+  slotEl.querySelectorAll(".pivot-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.pivot === nextPivot);
+  });
+  listEl.classList.remove("chore-pivot-animate");
+  listEl.classList.add("chore-pivot-leaving");
+
+  setTimeout(() => {
+    ui.pivot = nextPivot;
+    ui.editingChoreId = null;
+    ui.animatePivot = true;
+    ui.transitioning = false;
+    rerenderSlot();
+  }, 260);
 }
 
 function getTodayIsoDate() {
@@ -94,10 +128,10 @@ function normalizeChoresList(chores, todayStr) {
 }
 
 // ============================================================================
-// 3-MINUTE IDLE "ATTRACT MODE" PIVOT ROTATOR
+// 3-MINUTE IDLE "ATTRACT MODE" PIVOT ROTATOR (PER-INSTANCE RANDOMIZED STAGGER)
 // ============================================================================
 const IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
-const ATTRACT_ROTATE_INTERVAL_MS = 10 * 1000; // Rotate pivots every 10s once idle
+const ATTRACT_TICK_MS = 1000; // Check per-slot schedules every 1s
 let lastUserActivityMs = Date.now();
 let attractWatcherStarted = false;
 const activeSlotRenderers = new Map(); // slotId -> () => void
@@ -108,6 +142,10 @@ function ensureAttractModeWatcher() {
 
   const markActivity = () => {
     lastUserActivityMs = Date.now();
+    // Reset per-slot attract schedules so next time idle begins, each instance gets a fresh random delay
+    slotUiMap.forEach((ui) => {
+      ui.nextRotateAt = 0;
+    });
   };
 
   ["pointerdown", "mousemove", "keydown", "wheel", "touchstart"].forEach((evt) => {
@@ -116,7 +154,8 @@ function ensureAttractModeWatcher() {
 
   setInterval(() => {
     if (document.visibilityState === "hidden") return;
-    if (Date.now() - lastUserActivityMs < IDLE_THRESHOLD_MS) return;
+    const now = Date.now();
+    if (now - lastUserActivityMs < IDLE_THRESHOLD_MS) return;
 
     // Do not rotate if an input is focused or a flyout is open
     const activeTag = document.activeElement && document.activeElement.tagName;
@@ -131,13 +170,22 @@ function ensureAttractModeWatcher() {
       if (drawerEl) return;
 
       const ui = getSlotUi(slotId);
-      if (ui.editingChoreId) return;
+      if (ui.editingChoreId || ui.transitioning) return;
 
-      ui.pivot = ui.pivot === "checklist" ? "one-off" : "checklist";
-      ui.animatePivot = true;
-      rerenderSlot();
+      // When attract mode first activates, assign each widget instance its own random initial delay (0.5s – 9s)
+      if (!ui.nextRotateAt) {
+        ui.nextRotateAt = now + 500 + Math.floor(Math.random() * 8500);
+        return;
+      }
+
+      if (now >= ui.nextRotateAt) {
+        // Schedule next rotation with per-instance random cadence (11s – 17s)
+        ui.nextRotateAt = now + 11000 + Math.floor(Math.random() * 6000);
+        const nextPivot = ui.pivot === "checklist" ? "one-off" : "checklist";
+        switchPivotAnimated(slotId, nextPivot, rerenderSlot);
+      }
     });
-  }, ATTRACT_ROTATE_INTERVAL_MS);
+  }, ATTRACT_TICK_MS);
 }
 
 export default {
@@ -324,10 +372,7 @@ export default {
     wrap.querySelectorAll(".pivot-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (ui.pivot === btn.dataset.pivot) return;
-        ui.pivot = btn.dataset.pivot;
-        ui.editingChoreId = null;
-        ui.animatePivot = true;
-        renderSlotOnly();
+        switchPivotAnimated(slot.id, btn.dataset.pivot, renderSlotOnly);
       });
     });
 
@@ -358,7 +403,7 @@ export default {
       return wrap;
     }
 
-    visibleChores.forEach((c) => {
+    visibleChores.forEach((c, idx) => {
       const isDone = isChoreDoneToday(c, todayStr);
       const isEditing = ui.editingChoreId === c.id;
       const isScheduledToday = !c.repeating || (c.days || ALL_DAYS).includes(todayDayIdx);
@@ -366,6 +411,9 @@ export default {
       const row = document.createElement("div");
       row.className = "metro-list-item";
       row.style.setProperty("--slot-accent", "var(--slot-accent, #FA6800)");
+      if (shouldAnimate) {
+        row.style.animationDelay = `${idx * 55}ms`;
+      }
       if (!isScheduledToday && !isEditing) {
         row.style.opacity = "0.6";
       }
