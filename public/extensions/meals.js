@@ -21,7 +21,77 @@ function getCatalogIngredients(entry) {
     : [];
 }
 
-function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList) {
+function animateIngredientsToGroceries(sourceRect, ingredients) {
+  if (!sourceRect || !Array.isArray(ingredients) || ingredients.length === 0) return;
+
+  // Locate the active Grocery List widget on the Panorama
+  const grocListEl = document.querySelector('[id^="grocList_"]');
+  const grocSlotEl = grocListEl ? grocListEl.closest(".metro-slot") : null;
+  if (!grocSlotEl) return;
+
+  const targetRect = (grocListEl || grocSlotEl).getBoundingClientRect();
+  const startX = sourceRect.left + sourceRect.width / 2;
+  const startY = sourceRect.top + sourceRect.height / 2;
+  const endX = targetRect.left + Math.min(140, targetRect.width * 0.45);
+  const endY = targetRect.top + 28;
+
+  const itemsToFly = ingredients.slice(0, 6);
+
+  itemsToFly.forEach((ingName, idx) => {
+    const pill = document.createElement("div");
+    pill.className = "flying-ing-pill";
+    pill.textContent = `+ ${ingName}`;
+    pill.style.left = `${startX}px`;
+    pill.style.top = `${startY}px`;
+    document.body.appendChild(pill);
+
+    const dx = endX - startX;
+    const dy = endY - startY + idx * 18;
+    // Slight arc + fan spread per ingredient for a genie/stream effect
+    const midX = dx * 0.42 + (idx % 2 === 0 ? -18 : 18);
+    const midY = dy * 0.35 - 36 - idx * 6;
+
+    const anim = pill.animate(
+      [
+        {
+          transform: "translate(-50%, -50%) scale(0.75)",
+          opacity: 0.95,
+          offset: 0,
+        },
+        {
+          transform: `translate(calc(-50% + ${midX}px), calc(-50% + ${midY}px)) scale(1.02)`,
+          opacity: 1,
+          offset: 0.38,
+        },
+        {
+          transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.35, 0.2)`,
+          opacity: 0.1,
+          offset: 1,
+        },
+      ],
+      {
+        duration: 560,
+        delay: idx * 65,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards",
+      }
+    );
+
+    anim.onfinish = () => {
+      pill.remove();
+      if (idx === 0 && grocListEl) {
+        const rows = grocListEl.querySelectorAll(".metro-list-item");
+        for (let i = 0; i < Math.min(ingredients.length, rows.length); i++) {
+          rows[i].classList.remove("groc-receive-pulse");
+          void rows[i].offsetWidth;
+          rows[i].classList.add("groc-receive-pulse");
+        }
+      }
+    };
+  });
+}
+
+function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList, sourceRect = null) {
   const { appState, saveState } = ctx;
   if (!Array.isArray(appState.mealCatalog)) appState.mealCatalog = [];
   if (!Array.isArray(appState.activeMeals)) appState.activeMeals = [];
@@ -66,19 +136,24 @@ function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList) {
       ? `Added "${mealName}" + ${addedCount} linked grocery items`
       : `Added "${mealName}" to meal plan`
   );
+
+  if (hasGroceryReceiver && finalIngredients.length > 0 && sourceRect) {
+    animateIngredientsToGroceries(sourceRect, finalIngredients);
+  }
 }
 
 export default {
   id: "meals",
   order: 20,
   allowMultiple: false,
+  fullHeightDrawer: true,
   name: "meal planner",
   description:
     "Simple family meal list & recipe catalog. Broadcasts meal ingredients to any enabled grocery extension.",
   accent: "#A20025",
   defaultSize: "half",
   infoText:
-    "Add meals to your family plan. Any linked ingredients are automatically broadcast to your Grocery List whenever you add a meal.",
+    "Search your catalog or add a new meal below. Linked ingredients are automatically sent to your Grocery List whenever a meal is planned.",
   defaultState: {
     mealCatalog: [
       {
@@ -159,33 +234,184 @@ export default {
   },
 
   renderAddForm(ctx) {
-    const { slot, appState, closeDrawer, escapeHtml } = ctx;
+    const { slot, appState, closeDrawer, saveState, escapeHtml, canHandle } = ctx;
+    const hasGroceryReceiver = canHandle("groceries:add-items");
+    const addTitle = hasGroceryReceiver
+      ? "Add meal to plan & send ingredients to grocery list"
+      : "Add meal to plan";
+
     const formWrap = document.createElement("div");
+    formWrap.style.cssText =
+      "display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;";
     formWrap.innerHTML = `
-      <div class="quick-form" style="margin-bottom:8px;">
-        <input class="metro-input" id="mealNameInput_${slot.id}" placeholder="meal name (e.g. Street Tacos)..." list="catalogSuggestions_${slot.id}" />
-        <datalist id="catalogSuggestions_${slot.id}">
-          ${(appState.mealCatalog || []).map((m) => `<option value="${escapeHtml(m.name)}"></option>`).join("")}
-        </datalist>
-        <button class="metro-btn accent" style="--accent:#A20025" id="btnQuickAddMeal_${slot.id}">add</button>
+      <div class="quick-form" style="margin-bottom:8px; align-items:center;">
+        <input class="metro-input" id="mealNameInput_${slot.id}" placeholder="search catalog or enter new meal..." autocomplete="off" />
+        <button class="catalog-icon-btn accent" style="width:38px; height:38px;" id="btnQuickAddMeal_${slot.id}" title="${addTitle}">+</button>
       </div>
       <div class="quick-form" style="margin-bottom:0;">
-        <input class="metro-input" id="mealIngInput_${slot.id}" placeholder="linked ingredients (comma-separated, auto-fills if in catalog)..." />
+        <input class="metro-input" id="mealIngInput_${slot.id}" placeholder="linked ingredients (comma-separated)..." autocomplete="off" />
       </div>
+      <div class="catalog-drawer-header">
+        catalog (<span id="catalogCount_${slot.id}">0</span>)
+      </div>
+      <div class="metro-list catalog-drawer-list" id="catalogDrawerList_${slot.id}" data-scroll-pane="meals-catalog-${slot.id}"></div>
     `;
 
     const nameInput = formWrap.querySelector(`#mealNameInput_${slot.id}`);
     const ingInput = formWrap.querySelector(`#mealIngInput_${slot.id}`);
+    const countSpan = formWrap.querySelector(`#catalogCount_${slot.id}`);
+    const catalogListEl = formWrap.querySelector(`#catalogDrawerList_${slot.id}`);
+    let editingCatalogId = null;
+
+    const renderCatalogRows = () => {
+      const query = nameInput.value.trim().toLowerCase();
+      const catalog = appState.mealCatalog || [];
+      const filtered = query
+        ? catalog.filter((m) => {
+            const nameMatch = m.name.toLowerCase().includes(query);
+            const ingMatch = getCatalogIngredients(m).some((i) =>
+              i.toLowerCase().includes(query)
+            );
+            return nameMatch || ingMatch;
+          })
+        : catalog;
+
+      countSpan.textContent = String(filtered.length);
+      catalogListEl.innerHTML = "";
+
+      if (filtered.length === 0) {
+        catalogListEl.innerHTML = `
+          <div style="font-size:12px; color:var(--text-muted); padding:6px 2px;">
+            ${
+              query
+                ? `no catalog match for "${escapeHtml(nameInput.value.trim())}" — tap "+" above to save & plan it`
+                : "catalog is empty"
+            }
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach((catMeal) => {
+        const catIngs = getCatalogIngredients(catMeal);
+        const isEditing = editingCatalogId === catMeal.id;
+        const row = document.createElement("div");
+        row.className = "metro-list-item";
+        row.style.borderLeft = "4px solid #A20025";
+
+        if (isEditing) {
+          row.style.flexDirection = "column";
+          row.style.alignItems = "stretch";
+          row.style.gap = "8px";
+          row.innerHTML = `
+            <input class="metro-input" data-edit="name" value="${escapeHtml(catMeal.name)}" placeholder="meal name..." />
+            <input class="metro-input" data-edit="ings" value="${escapeHtml(catIngs.join(", "))}" placeholder="linked ingredients (comma-separated)..." />
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+              <button class="metro-btn subtle" style="border-color:#A20025; color:#FF6B8B; padding:4px 10px; font-size:12px;" data-action="delete-catalog">
+                delete recipe
+              </button>
+              <div style="display:flex; gap:6px;">
+                <button class="metro-btn subtle" style="padding:4px 10px; font-size:12px;" data-action="cancel-edit">
+                  cancel
+                </button>
+                <button class="metro-btn accent" style="--accent:#A20025; padding:4px 12px; font-size:12px;" data-action="save-edit">
+                  save
+                </button>
+              </div>
+            </div>
+          `;
+
+          const editNameEl = row.querySelector('[data-edit="name"]');
+          const editIngsEl = row.querySelector('[data-edit="ings"]');
+
+          const commitCatalogEdit = () => {
+            const newName = editNameEl.value.trim();
+            if (!newName) return;
+            const newIngs = editIngsEl.value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+            catMeal.name = newName;
+            catMeal.ingredients = newIngs;
+            delete catMeal.LinkedIngredients;
+            editingCatalogId = null;
+            saveState(`Updated "${newName}" in catalog`);
+          };
+
+          row.querySelector('[data-action="save-edit"]').addEventListener("click", commitCatalogEdit);
+          row.querySelector('[data-action="cancel-edit"]').addEventListener("click", () => {
+            editingCatalogId = null;
+            renderCatalogRows();
+          });
+          row.querySelector('[data-action="delete-catalog"]').addEventListener("click", () => {
+            appState.mealCatalog = (appState.mealCatalog || []).filter(
+              (m) => m.id !== catMeal.id
+            );
+            editingCatalogId = null;
+            saveState(`Deleted "${catMeal.name}" from catalog`);
+          });
+
+          editNameEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commitCatalogEdit();
+            if (e.key === "Escape") {
+              editingCatalogId = null;
+              renderCatalogRows();
+            }
+          });
+          editIngsEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commitCatalogEdit();
+            if (e.key === "Escape") {
+              editingCatalogId = null;
+              renderCatalogRows();
+            }
+          });
+
+          catalogListEl.appendChild(row);
+          setTimeout(() => editIngsEl.focus(), 20);
+          return;
+        }
+
+        row.innerHTML = `
+          <div style="min-width:0; flex:1;">
+            <div class="item-primary">${escapeHtml(catMeal.name)}</div>
+            <div class="item-secondary" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              ${escapeHtml(catIngs.join(" · ") || "no linked ingredients")}
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <button class="catalog-icon-btn accent" data-action="plan-catalog" title="${addTitle}">+</button>
+            <button class="catalog-icon-btn" data-action="edit-catalog" title="Edit ingredients or delete">✎</button>
+          </div>
+        `;
+
+        const planBtn = row.querySelector('[data-action="plan-catalog"]');
+        planBtn.addEventListener("click", () => {
+          const sourceRect = planBtn.getBoundingClientRect();
+          closeDrawer();
+          addMealAndBroadcastIngredients(ctx, catMeal.name, catIngs, sourceRect);
+        });
+
+        row.querySelector('[data-action="edit-catalog"]').addEventListener("click", () => {
+          editingCatalogId = catMeal.id;
+          renderCatalogRows();
+        });
+
+        catalogListEl.appendChild(row);
+      });
+    };
 
     nameInput.addEventListener("input", () => {
-      const match = (appState.mealCatalog || []).find(
-        (m) => m.name.toLowerCase() === nameInput.value.trim().toLowerCase()
+      const q = nameInput.value.trim().toLowerCase();
+      const exactMatch = (appState.mealCatalog || []).find(
+        (m) => m.name.toLowerCase() === q
       );
-      if (match) {
-        ingInput.value = getCatalogIngredients(match).join(", ");
+      if (exactMatch) {
+        ingInput.value = getCatalogIngredients(exactMatch).join(", ");
       }
+      renderCatalogRows();
     });
 
+    const quickAddBtn = formWrap.querySelector(`#btnQuickAddMeal_${slot.id}`);
     const handleAddMeal = () => {
       const rawName = nameInput.value.trim();
       if (!rawName) return;
@@ -194,11 +420,12 @@ export default {
         .map((s) => s.trim())
         .filter(Boolean);
 
+      const sourceRect = quickAddBtn.getBoundingClientRect();
       closeDrawer();
-      addMealAndBroadcastIngredients(ctx, rawName, rawIngs);
+      addMealAndBroadcastIngredients(ctx, rawName, rawIngs, sourceRect);
     };
 
-    formWrap.querySelector(`#btnQuickAddMeal_${slot.id}`).addEventListener("click", handleAddMeal);
+    quickAddBtn.addEventListener("click", handleAddMeal);
     nameInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleAddMeal();
     });
@@ -206,122 +433,47 @@ export default {
       if (e.key === "Enter") handleAddMeal();
     });
 
+    renderCatalogRows();
     setTimeout(() => nameInput.focus(), 20);
     return formWrap;
   },
 
   renderSlot(ctx) {
-    const { appState, uiState, saveState, renderAll, escapeHtml, canHandle } = ctx;
-    const container = document.createElement("div");
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.height = "100%";
-
-    const isCatalog = uiState.mealsPivot === "catalog";
+    const { appState, saveState, escapeHtml } = ctx;
     const activeMeals = appState.activeMeals || [];
-    const mealCatalog = appState.mealCatalog || [];
-    const hasGroceryReceiver = canHandle("groceries:add-items");
 
-    container.innerHTML = `
-      <div class="sub-pivots">
-        <button class="pivot-tab ${!isCatalog ? "active" : ""}" data-pivot="plan">
-          this week (${activeMeals.length})
-        </button>
-        <button class="pivot-tab ${isCatalog ? "active" : ""}" data-pivot="catalog">
-          catalog (${mealCatalog.length})
-        </button>
-      </div>
-      <div id="mealSubContent" data-scroll-pane="meals-sub" style="flex:1; overflow-y:auto;"></div>
-    `;
+    const list = document.createElement("div");
+    list.className = "metro-list";
 
-    container.querySelectorAll(".pivot-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        uiState.mealsPivot = btn.dataset.pivot;
-        renderAll();
-      });
-    });
-
-    const sub = container.querySelector("#mealSubContent");
-
-    if (!isCatalog) {
-      const list = document.createElement("div");
-      list.className = "metro-list";
-
-      activeMeals.forEach((meal) => {
-        const card = document.createElement("div");
-        card.className = "meal-card";
-        card.innerHTML = `
-          <div class="meal-card-top">
-            <div>
-              <div class="meal-name">${escapeHtml(meal.name)}</div>
-              <div class="item-secondary">${(meal.ingredients || []).length} linked items</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              ${
-                hasGroceryReceiver
-                  ? `<button class="slot-icon-btn" data-action="readd-groceries" title="Send ingredients to grocery list">+ groceries</button>`
-                  : ""
-              }
-              <button class="slot-icon-btn" data-action="remove-meal" title="Remove from active meals">✕</button>
-            </div>
-          </div>
-          <div class="ingredient-tags">
-            ${(meal.ingredients || [])
-              .map((ing) => `<span class="ing-tag">${escapeHtml(ing)}</span>`)
-              .join("")}
-          </div>
-        `;
-
-        const readdBtn = card.querySelector('[data-action="readd-groceries"]');
-        if (readdBtn) {
-          readdBtn.addEventListener("click", () => {
-            const addedCount = dispatchIngredients(ctx, meal.name, meal.ingredients || []);
-            saveState(`Added ${addedCount} items for "${meal.name}" to Groceries`);
-          });
-        }
-
-        card.querySelector('[data-action="remove-meal"]').addEventListener("click", () => {
-          appState.activeMeals = appState.activeMeals.filter((m) => m.id !== meal.id);
-          saveState(`Removed "${meal.name}" from meal list`);
-        });
-
-        list.appendChild(card);
-      });
-
-      sub.appendChild(list);
-    } else {
-      const list = document.createElement("div");
-      list.className = "metro-list";
-
-      mealCatalog.forEach((catMeal) => {
-        const catIngs = getCatalogIngredients(catMeal);
-        const card = document.createElement("div");
-        card.className = "meal-card";
-        card.innerHTML = `
-          <div class="meal-card-top">
-            <div class="meal-name">${escapeHtml(catMeal.name)}</div>
-            <button class="metro-btn accent" style="--accent:#A20025; padding:4px 10px; font-size:12px;">
-              ${hasGroceryReceiver ? "+ plan & groceries" : "+ plan meal"}
-            </button>
-          </div>
-          <div class="ingredient-tags">
-            ${catIngs
-              .map((ing) => `<span class="ing-tag">${escapeHtml(ing)}</span>`)
-              .join("")}
-          </div>
-        `;
-
-        card.querySelector("button").addEventListener("click", () => {
-          addMealAndBroadcastIngredients(ctx, catMeal.name, catIngs);
-          uiState.mealsPivot = "plan";
-        });
-
-        list.appendChild(card);
-      });
-
-      sub.appendChild(list);
+    if (activeMeals.length === 0) {
+      list.innerHTML = `
+        <div class="agenda-empty" style="padding:8px 2px;">
+          no meals planned — tap ••• above to add from catalog
+        </div>
+      `;
+      return list;
     }
 
-    return container;
+    activeMeals.forEach((meal) => {
+      const row = document.createElement("div");
+      row.className = "metro-list-item";
+      row.innerHTML = `
+        <div class="item-text-wrap" style="min-width:0; flex:1;">
+          <span class="item-primary">${escapeHtml(meal.name)}</span>
+        </div>
+        <button class="metro-btn accent" style="--accent:#A20025; padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ate-meal">
+          ate!
+        </button>
+      `;
+
+      row.querySelector('[data-action="ate-meal"]').addEventListener("click", () => {
+        appState.activeMeals = (appState.activeMeals || []).filter((m) => m.id !== meal.id);
+        saveState(`Ate "${meal.name}"`);
+      });
+
+      list.appendChild(row);
+    });
+
+    return list;
   },
 };

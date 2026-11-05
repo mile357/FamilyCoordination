@@ -3,6 +3,8 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
+import { renderQrSvg } from "../qr.js?v=30";
+
 export default {
   id: "groceries",
   order: 30,
@@ -59,22 +61,87 @@ export default {
   },
 
   renderAddForm(ctx) {
-    const { slot, appState, closeDrawer, saveState } = ctx;
+    const { slot, appState, uiState, closeDrawer, saveState, escapeHtml } = ctx;
     const groceries = appState.groceries || [];
-    const checkedCount = groceries.filter((g) => g.checked).length;
+    const unchecked = groceries.filter((g) => !g.checked);
+    const checkedCount = groceries.length - unchecked.length;
+
+    if (!uiState.grocQrMode) {
+      uiState.grocQrMode = "text"; // "text" | "webapp"
+    }
 
     const wrap = document.createElement("div");
-    wrap.className = "quick-form";
-    wrap.style.marginBottom = "0";
     wrap.innerHTML = `
-      <input class="metro-input" id="grocInput_${slot.id}" placeholder="add grocery item..." />
-      <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slot.id}">add</button>
-      ${
-        checkedCount > 0
-          ? `<button class="metro-btn subtle" id="btnClearChecked_${slot.id}">clear (${checkedCount})</button>`
-          : ""
-      }
+      <div class="quick-form" style="margin-bottom:0;">
+        <input class="metro-input" id="grocInput_${slot.id}" placeholder="add grocery item..." />
+        <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slot.id}">add</button>
+        ${
+          checkedCount > 0
+            ? `<button class="metro-btn subtle" id="btnClearChecked_${slot.id}">clear (${checkedCount})</button>`
+            : ""
+        }
+      </div>
+      <div class="groc-qr-card">
+        <div id="grocQrBox_${slot.id}"></div>
+        <div class="groc-qr-info">
+          <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:#60A917;">
+            take on phone
+          </div>
+          <div class="groc-qr-modes">
+            <button type="button" class="groc-qr-mode-btn" data-qrmode="text">copy text</button>
+            <button type="button" class="groc-qr-mode-btn" data-qrmode="webapp">webapp list</button>
+          </div>
+          <div class="groc-qr-caption" id="grocQrCaption_${slot.id}"></div>
+        </div>
+      </div>
     `;
+
+    const qrBoxEl = wrap.querySelector(`#grocQrBox_${slot.id}`);
+    const qrCaptionEl = wrap.querySelector(`#grocQrCaption_${slot.id}`);
+    const modeBtns = wrap.querySelectorAll(".groc-qr-mode-btn");
+
+    const updateQrPanel = () => {
+      const mode = uiState.grocQrMode || "text";
+      modeBtns.forEach((b) => {
+        b.classList.toggle("active", b.dataset.qrmode === mode);
+      });
+
+      if (mode === "webapp") {
+        const isLocalhost =
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1";
+        const origin =
+          isLocalhost && appState._lanOrigin
+            ? appState._lanOrigin
+            : window.location.origin;
+        const webappUrl = `${origin}/go.html`;
+        qrBoxEl.innerHTML = renderQrSvg(webappUrl, 108);
+        qrCaptionEl.innerHTML = `Scan on home Wi-Fi to open the interactive checklist (<code>${escapeHtml(
+          origin.replace(/^https?:\/\//, "")
+        )}/go.html</code>). Caches for the store &amp; syncs back home.`;
+      } else {
+        const itemsForText = (unchecked.length > 0 ? unchecked : groceries).map(
+          (g) => `- ${g.name}`
+        );
+        const textPayload =
+          itemsForText.length > 0
+            ? itemsForText.join("\n").slice(0, 220)
+            : "Grocery list is empty";
+        qrBoxEl.innerHTML = renderQrSvg(textPayload, 108);
+        qrCaptionEl.textContent = `Scan with your phone camera and tap "Copy" to paste ${itemsForText.length} item${
+          itemsForText.length === 1 ? "" : "s"
+        } into Notes.`;
+      }
+    };
+
+    modeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        uiState.grocQrMode = btn.dataset.qrmode;
+        updateQrPanel();
+      });
+    });
+
+    updateQrPanel();
 
     const input = wrap.querySelector(`#grocInput_${slot.id}`);
     const addGroc = () => {
@@ -87,7 +154,7 @@ export default {
         checked: false,
         fromMeal: null,
       });
-      closeDrawer();
+      input.value = "";
       saveState(`Added "${val}" to groceries`);
     };
 
@@ -100,7 +167,6 @@ export default {
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
         appState.groceries = (appState.groceries || []).filter((g) => !g.checked);
-        closeDrawer();
         saveState("Cleared checked grocery items");
       });
     }

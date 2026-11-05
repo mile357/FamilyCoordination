@@ -3,12 +3,15 @@
 Metro Family Hub — Lightweight SQLite + JSON API & Static Server
 Runs standalone on Ubuntu Linux or macOS using only the Python standard library.
 """
+import contextlib
+import copy
 import ipaddress
 import json
 import os
 import re
 import socket
 import sqlite3
+import threading
 import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -23,6 +26,9 @@ PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 WEATHER_CACHE = {}
 WEATHER_TTL_SECONDS = 15 * 60  # 15-minute server-side weather cache
 MAX_BODY_BYTES = 2 * 1024 * 1024
+
+STATE_LOCK = threading.Lock()
+STATE_CACHE = None
 
 
 def get_initial_state():
@@ -43,49 +49,86 @@ def get_initial_state():
     }
 
 
+@contextlib.contextmanager
 def _connect_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def _now_token():
     return datetime.now(timezone.utc).isoformat()
 
 
+def get_lan_origin():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return f"http://{ip}:{PORT}"
+    except Exception:
+        pass
+    return f"http://localhost:{PORT}"
+
+
 def init_db():
-    with _connect_db() as conn:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS app_state ("
-            "id INTEGER PRIMARY KEY CHECK (id = 1), "
-            "state_json TEXT NOT NULL, "
-            "updated_at TEXT NOT NULL)"
-        )
-        row = conn.execute("SELECT state_json FROM app_state WHERE id = 1").fetchone()
-        if not row:
-            now_iso = _now_token()
-            initial = get_initial_state()
-            initial["_updatedAt"] = now_iso
+    global STATE_CACHE
+    with STATE_LOCK:
+        with _connect_db() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
-                "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?)",
-                (json.dumps(initial), now_iso),
+                "CREATE TABLE IF NOT EXISTS app_state ("
+                "id INTEGER PRIMARY KEY CHECK (id = 1), "
+                "state_json TEXT NOT NULL, "
+                "updated_at TEXT NOT NULL)"
             )
+            row = conn.execute(
+                "SELECT state_json, updated_at FROM app_state WHERE id = 1"
+            ).fetchone()
+            if not row:
+                now_iso = _now_token()
+                initial = get_initial_state()
+                initial["_updatedAt"] = now_iso
+                conn.execute(
+                    "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?)",
+                    (json.dumps(initial), now_iso),
+                )
+                STATE_CACHE = initial
+            else:
+                state = json.loads(row[0])
+                state["_updatedAt"] = row[1]
+                STATE_CACHE = state
             conn.commit()
 
 
 def read_state():
-    with _connect_db() as conn:
-        row = conn.execute(
-            "SELECT state_json, updated_at FROM app_state WHERE id = 1"
-        ).fetchone()
-    if row:
-        state = json.loads(row[0])
-        state["_updatedAt"] = row[1]
-        return state
-    initial = get_initial_state()
-    initial["_updatedAt"] = _now_token()
-    return initial
+    global STATE_CACHE
+    with STATE_LOCK:
+        if STATE_CACHE is not None:
+            res = copy.deepcopy(STATE_CACHE)
+            res["_lanOrigin"] = get_lan_origin()
+            return res
+        with _connect_db() as conn:
+            row = conn.execute(
+                "SELECT state_json, updated_at FROM app_state WHERE id = 1"
+            ).fetchone()
+        if row:
+            state = json.loads(row[0])
+            state["_updatedAt"] = row[1]
+            STATE_CACHE = state
+            res = copy.deepcopy(STATE_CACHE)
+            res["_lanOrigin"] = get_lan_origin()
+            return res
+        initial = get_initial_state()
+        initial["_updatedAt"] = _now_token()
+        STATE_CACHE = initial
+        res = copy.deepcopy(STATE_CACHE)
+        res["_lanOrigin"] = get_lan_origin()
+        return res
 
 
 def write_state(new_state, expected_updated_at=None):
@@ -93,29 +136,35 @@ def write_state(new_state, expected_updated_at=None):
     Persist state to SQLite with optional optimistic concurrency check.
     Returns (saved_ok, latest_state).
     """
+    global STATE_CACHE
     now_iso = _now_token()
-    with _connect_db() as conn:
-        row = conn.execute(
-            "SELECT state_json, updated_at FROM app_state WHERE id = 1"
-        ).fetchone()
-        if row and expected_updated_at:
-            current_state = json.loads(row[0])
-            current_updated_at = row[1]
-            # Only trigger conflict if the DB already has initialized columns
-            # and its version token differs from what the client based its edit on.
-            if (
-                current_updated_at != expected_updated_at
-                and current_state.get("columns")
-            ):
-                current_state["_updatedAt"] = current_updated_at
-                return False, current_state
+    with STATE_LOCK:
+        with _connect_db() as conn:
+            row = conn.execute(
+                "SELECT state_json, updated_at FROM app_state WHERE id = 1"
+            ).fetchone()
+            if row and expected_updated_at:
+                current_state = json.loads(row[0])
+                current_updated_at = row[1]
+                if (
+                    current_updated_at != expected_updated_at
+                    and current_state.get("columns")
+                ):
+                    current_state["_updatedAt"] = current_updated_at
+                    STATE_CACHE = current_state
+                    res = copy.deepcopy(current_state)
+                    res["_lanOrigin"] = get_lan_origin()
+                    return False, res
 
-        new_state["_updatedAt"] = now_iso
-        conn.execute(
-            "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
-            (json.dumps(new_state), now_iso),
-        )
-        conn.commit()
+            new_state.pop("_lanOrigin", None)
+            new_state["_updatedAt"] = now_iso
+            conn.execute(
+                "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
+                (json.dumps(new_state), now_iso),
+            )
+            conn.commit()
+            STATE_CACHE = copy.deepcopy(new_state)
+    new_state["_lanOrigin"] = get_lan_origin()
     return True, new_state
 
 

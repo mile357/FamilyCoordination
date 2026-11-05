@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "23";
+const ASSET_VERSION = "30";
 
 const METRO_ACCENTS = [
   { name: "Teal", hex: "#00ABA9" },
@@ -393,6 +393,7 @@ function getSlotDrawerState(slotId) {
 function toggleSlotDrawer(slotId) {
   const st = getSlotDrawerState(slotId);
   st.open = !st.open;
+  st.justOpened = st.open;
   if (!st.open) st.mode = null;
   renderAll();
 }
@@ -505,8 +506,9 @@ async function persistStateToServer() {
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.state && data.state._updatedAt) {
-        appState._updatedAt = data.state._updatedAt;
+      if (data && data.state) {
+        if (data.state._updatedAt) appState._updatedAt = data.state._updatedAt;
+        if (data.state._lanOrigin) appState._lanOrigin = data.state._lanOrigin;
       }
       snapshotSyncedState(appState);
     }
@@ -1340,9 +1342,19 @@ function renderAll() {
           `
           : "";
 
+      const drawerClasses = [
+        "slot-command-drawer",
+        drawer.open ? "open" : "",
+        drawer.justOpened ? "just-opened" : "",
+        plugin.fullHeightDrawer ? "full-height-drawer" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      drawer.justOpened = false;
+
       slotEl.innerHTML = `
         ${slotHeaderHtml}
-        <div class="slot-command-drawer ${drawer.open ? "open" : ""}">
+        <div class="${drawerClasses}">
           <div class="slot-appbar-row">
             <div class="slot-info-inline">${
               drawer.mode === "info" && plugin.infoText ? escapeHtml(plugin.infoText) : ""
@@ -1564,13 +1576,13 @@ function renderFlyoutContent() {
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
         <h2 class="flyout-title">widget trash</h2>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; align-items:baseline; gap:14px;">
           ${
             trashCount > 0
               ? `<button class="metro-btn subtle" id="btnEmptyTrash">empty trash</button>`
               : ""
           }
-          <button class="metro-btn subtle" id="btnCloseFlyout">close</button>
+          <button class="metro-ellipsis-btn global-ellipsis active" id="btnCloseFlyout" title="Close">•••</button>
         </div>
       </div>
       <p style="font-size:14px; color:var(--text-secondary);">
@@ -1600,7 +1612,7 @@ function renderFlyoutContent() {
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
         <h2 class="flyout-title">settings</h2>
-        <button class="metro-btn subtle" id="btnCloseFlyout">close</button>
+        <button class="metro-ellipsis-btn global-ellipsis active" id="btnCloseFlyout" title="Close settings">•••</button>
       </div>
 
       <div class="sub-pivots" style="gap:24px; margin-bottom:4px;">
@@ -1806,7 +1818,7 @@ function renderFlyoutContent() {
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
         <h2 class="flyout-title">${isHalfFill ? "fill half-column" : "add column"}</h2>
-        <button class="metro-btn subtle" id="btnCloseFlyout">close</button>
+        <button class="metro-ellipsis-btn global-ellipsis active" id="btnCloseFlyout" title="Close">•••</button>
       </div>
       ${
         trashCount > 0

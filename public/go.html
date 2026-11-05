@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>grocery list — family hub</title>
+  <link rel="stylesheet" href="/styles.css?v=30" />
+  <style>
+    body {
+      overflow-y: auto;
+      padding: 20px 18px 48px 18px;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    .pocket-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .pocket-title {
+      font-size: 38px;
+      font-weight: 200;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      text-transform: lowercase;
+    }
+    .pocket-status {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50% !important;
+      background: #60A917;
+      display: inline-block;
+    }
+    .status-dot.offline {
+      background: #F0A30A;
+    }
+    .pocket-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <header class="pocket-header">
+    <h1 class="pocket-title">grocery list</h1>
+    <button class="metro-btn accent" style="--accent:#60A917; padding:6px 12px; font-size:13px;" id="btnCopyNotes">
+      copy for notes
+    </button>
+  </header>
+
+  <div class="pocket-status" id="syncStatus">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">connecting to family hub...</span>
+  </div>
+
+  <div class="quick-form" style="margin-bottom:14px;">
+    <input class="metro-input" id="mobileGrocInput" placeholder="add grocery item..." autocomplete="off" />
+    <button class="metro-btn accent" style="--accent:#60A917" id="btnMobileAdd">add</button>
+    <button class="metro-btn subtle" id="btnMobileClear" style="display:none;">clear</button>
+  </div>
+
+  <div class="metro-list" id="mobileGrocList"></div>
+
+  <div class="toast-banner" id="mobileToast"></div>
+
+  <script>
+    const CACHE_KEY = "metro_pocket_groceries_v1";
+    const DIRTY_KEY = "metro_pocket_dirty_v1";
+    let groceries = [];
+    let isOnlineWithHub = false;
+
+    function showMobileToast(msg) {
+      const el = document.getElementById("mobileToast");
+      el.textContent = msg;
+      el.classList.add("visible");
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove("visible"), 2200);
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function loadInitialSeedFromHashOrCache() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          groceries = JSON.parse(cached) || [];
+        }
+      } catch (e) {}
+
+      if (groceries.length === 0 && location.hash.startsWith("#items=")) {
+        try {
+          const raw = decodeURIComponent(location.hash.slice("#items=".length));
+          const names = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+          groceries = names.map((name, i) => ({
+            id: "hash-" + i,
+            name: name.replace(/^[•\-*]\s*/, ""),
+            checked: false,
+            fromMeal: null,
+          }));
+          saveLocalCache(false);
+        } catch (e) {}
+      }
+    }
+
+    function saveLocalCache(markDirty = true) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(groceries));
+        if (markDirty) {
+          localStorage.setItem(DIRTY_KEY, "1");
+        }
+      } catch (e) {}
+    }
+
+    function setSyncIndicator(online, text) {
+      isOnlineWithHub = online;
+      const dot = document.getElementById("statusDot");
+      const label = document.getElementById("statusText");
+      dot.className = "status-dot" + (online ? "" : " offline");
+      label.textContent = text;
+    }
+
+    async function syncWithHub() {
+      try {
+        const res = await fetch("/api/state", { cache: "no-store" });
+        if (!res.ok) throw new Error("Hub unreachable");
+        const state = await res.json();
+
+        const hasDirtyLocal = localStorage.getItem(DIRTY_KEY) === "1";
+        if (hasDirtyLocal && groceries.length > 0) {
+          state.groceries = groceries;
+          const postRes = await fetch("/api/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(state),
+          });
+          if (postRes.ok) {
+            localStorage.removeItem(DIRTY_KEY);
+          }
+        } else if (Array.isArray(state.groceries)) {
+          groceries = state.groceries;
+          saveLocalCache(false);
+        }
+
+        setSyncIndicator(true, "synced with kitchen hub (cached for store)");
+        renderList();
+      } catch (e) {
+        setSyncIndicator(
+          false,
+          "offline store mode — check-offs saved on phone & sync when back on home wi-fi"
+        );
+        renderList();
+      }
+    }
+
+    async function pushChangeToHub() {
+      saveLocalCache(true);
+      renderList();
+      await syncWithHub();
+    }
+
+    function renderList() {
+      const listEl = document.getElementById("mobileGrocList");
+      const clearBtn = document.getElementById("btnMobileClear");
+      listEl.innerHTML = "";
+
+      const checkedCount = groceries.filter((g) => g.checked).length;
+      if (checkedCount > 0) {
+        clearBtn.style.display = "inline-flex";
+        clearBtn.textContent = `clear (${checkedCount})`;
+      } else {
+        clearBtn.style.display = "none";
+      }
+
+      const sorted = [...groceries].sort((a, b) => Number(a.checked) - Number(b.checked));
+      if (sorted.length === 0) {
+        listEl.innerHTML = `<div style="padding:18px; background:var(--bg-tile); color:var(--text-secondary);">grocery list is empty</div>`;
+        return;
+      }
+
+      sorted.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "metro-list-item";
+        row.style.setProperty("--slot-accent", "#60A917");
+        row.innerHTML = `
+          <div class="check-row" role="checkbox" aria-checked="${Boolean(item.checked)}" tabindex="0">
+            <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>
+            <div class="item-text-wrap">
+              <span class="item-primary ${item.checked ? "checked-text" : ""}">${escapeHtml(item.name)}</span>
+              ${
+                item.fromMeal
+                  ? `<span class="item-secondary">from meal: ${escapeHtml(item.fromMeal)}</span>`
+                  : ""
+              }
+            </div>
+          </div>
+          <button class="slot-icon-btn" title="Delete">✕</button>
+        `;
+
+        row.querySelector(".check-row").addEventListener("click", () => {
+          item.checked = !item.checked;
+          pushChangeToHub();
+        });
+
+        row.querySelector("button").addEventListener("click", () => {
+          groceries = groceries.filter((g) => g.id !== item.id);
+          pushChangeToHub();
+        });
+
+        listEl.appendChild(row);
+      });
+    }
+
+    document.getElementById("btnMobileAdd").addEventListener("click", () => {
+      const inp = document.getElementById("mobileGrocInput");
+      const val = inp.value.trim();
+      if (!val) return;
+      groceries.unshift({
+        id: "groc-" + Date.now(),
+        name: val,
+        checked: false,
+        fromMeal: null,
+      });
+      inp.value = "";
+      pushChangeToHub();
+    });
+
+    document.getElementById("mobileGrocInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("btnMobileAdd").click();
+    });
+
+    document.getElementById("btnMobileClear").addEventListener("click", () => {
+      groceries = groceries.filter((g) => !g.checked);
+      pushChangeToHub();
+    });
+
+    document.getElementById("btnCopyNotes").addEventListener("click", async () => {
+      const unchecked = groceries.filter((g) => !g.checked);
+      const listToCopy = (unchecked.length > 0 ? unchecked : groceries)
+        .map((g) => `• ${g.name}`)
+        .join("\n");
+      try {
+        await navigator.clipboard.writeText(listToCopy);
+        showMobileToast("Copied grocery list to clipboard!");
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = listToCopy;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        showMobileToast("Copied grocery list to clipboard!");
+      }
+    });
+
+    loadInitialSeedFromHashOrCache();
+    renderList();
+    syncWithHub();
+    window.addEventListener("online", syncWithHub);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") syncWithHub();
+    });
+    setInterval(syncWithHub, 15000);
+  </script>
+</body>
+</html>

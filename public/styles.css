@@ -437,6 +437,17 @@ html, body {
 }
 
 /* Classic Metro Command Bar Below the Title */
+@keyframes metroDrawerSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .slot-command-drawer {
   background: var(--bg-appbar);
   border-top: 1px solid var(--border-color);
@@ -450,6 +461,30 @@ html, body {
 
 .slot-command-drawer.open {
   display: flex;
+}
+
+.slot-command-drawer.open.just-opened {
+  animation: metroDrawerSlideDown 0.38s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.slot-command-drawer.open.full-height-drawer {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: none;
+  padding-bottom: 14px;
+}
+
+.slot-command-drawer.open.full-height-drawer ~ .slot-body {
+  display: none;
+}
+
+.slot-command-drawer.open.full-height-drawer .slot-inline-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .slot-appbar-row {
@@ -853,6 +888,147 @@ html, body {
   border: 1px solid var(--border-color);
 }
 
+.catalog-drawer-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 10px 0 6px 0;
+}
+
+.catalog-drawer-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.catalog-drawer-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.catalog-drawer-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
+.catalog-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-metro);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.08s ease, border-color 0.1s ease, color 0.1s ease, background-color 0.1s ease;
+}
+
+.catalog-icon-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: var(--bg-tile-hover);
+}
+
+.catalog-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.catalog-icon-btn.accent {
+  background: #A20025;
+  border-color: #A20025;
+  color: #FFFFFF;
+  font-size: 19px;
+  font-weight: 400;
+}
+
+.catalog-icon-btn.accent:hover {
+  background: #bf002b;
+  border-color: #FFFFFF;
+}
+
+.flying-ing-pill {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: #60A917;
+  color: #FFFFFF;
+  border-left: 4px solid #FFFFFF;
+  padding: 4px 10px;
+  font-family: var(--font-metro);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  transform-origin: center center;
+}
+
+@keyframes grocSlotPulse {
+  0% {
+    background-color: rgba(96, 169, 23, 0.32);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.groc-receive-pulse {
+  animation: grocSlotPulse 0.65s ease-out;
+}
+
+.groc-qr-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-tile);
+  border-left: 4px solid #60A917;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.groc-qr-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.groc-qr-modes {
+  display: inline-flex;
+  border: 2px solid var(--border-strong);
+  align-self: flex-start;
+}
+
+.groc-qr-mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-metro);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: lowercase;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.groc-qr-mode-btn.active {
+  background: #60A917;
+  color: #FFFFFF;
+}
+
+.groc-qr-caption {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
 /* ==========================================================================
    METRO CUSTOMIZE LAYOUT (WIREFRAME / ARRANGE) MODE
    ========================================================================== */
@@ -1014,13 +1190,20 @@ html, body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
-  display: none;
+  display: flex;
   justify-content: flex-end;
   z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.34s cubic-bezier(0.1, 0.9, 0.2, 1),
+    visibility 0.34s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
 .flyout-backdrop.open {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .metro-flyout {
@@ -1029,11 +1212,17 @@ html, body {
   height: 100vh;
   background: var(--bg-surface);
   border-left: 4px solid var(--accent);
-  padding: 32px;
+  padding: 25px 40px 32px 32px;
   display: flex;
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.38s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.flyout-backdrop.open .metro-flyout {
+  transform: translateX(0);
 }
 
 .flyout-title {
