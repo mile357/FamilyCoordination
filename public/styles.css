@@ -637,11 +637,23 @@ html, body {
   flex-direction: column;
 }
 
+.hour-grid-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .hour-row {
   display: grid;
   grid-template-columns: 58px 1fr;
-  min-height: 60px;
+  height: var(--hour-height, 72px);
+  min-height: var(--hour-height, 72px);
   border-top: 1px solid var(--border-color);
+}
+
+.hour-row.all-day-row {
+  height: auto;
+  min-height: 52px;
 }
 
 .hour-row.current-hour {
@@ -663,6 +675,15 @@ html, body {
   padding: 4px 0;
 }
 
+.hour-events-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 58px;
+  right: 0;
+  pointer-events: none;
+}
+
 .metro-event-tile {
   background: var(--bg-tile);
   border-left: 5px solid var(--ev-color, var(--accent));
@@ -671,6 +692,65 @@ html, body {
   flex-direction: column;
   gap: 2px;
   transition: transform 0.08s ease;
+}
+
+.metro-event-tile.timeline-event-tile {
+  position: absolute;
+  pointer-events: auto;
+  padding: 4px 10px;
+  gap: 1px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--bg-surface);
+}
+
+.metro-event-tile.timeline-event-tile .ev-time {
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metro-event-tile.timeline-event-tile .ev-title {
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metro-event-tile.timeline-event-tile .ev-meta {
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.metro-event-tile.timeline-event-tile .ev-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metro-event-tile.timeline-event-tile.timeline-ev-sm {
+  padding: 3px 10px;
+  justify-content: center;
+}
+
+.metro-event-tile.timeline-event-tile.timeline-ev-sm .ev-meta {
+  display: none;
+}
+
+.metro-event-tile.timeline-event-tile.timeline-ev-xs {
+  padding: 2px 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.metro-event-tile.timeline-event-tile.timeline-ev-xs .ev-meta {
+  display: none;
+}
+
+.metro-event-tile.timeline-event-tile.timeline-ev-xs .ev-title {
+  font-size: 13px;
 }
 
 .metro-event-tile:active {

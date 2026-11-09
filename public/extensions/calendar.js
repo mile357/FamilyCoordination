@@ -369,19 +369,91 @@ export default {
 
     const now = new Date();
     const currentHour = now.getHours();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const dayStartMs = dayStart.getTime();
+    const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+
     const todayEntries = eventsByDate.get(dateKey(now)) || [];
     const todayAllDay = todayEntries.filter((x) => x.ev.allDay);
-    const todayByHour = new Map();
+
+    // Prepare timed events with clamped minute offsets [0..1440] within today
+    const timedItems = [];
     for (const entry of todayEntries) {
       if (entry.ev.allDay) continue;
-      const hr = entry.startDt.getHours();
-      if (!todayByHour.has(hr)) todayByHour.set(hr, []);
-      todayByHour.get(hr).push(entry);
+      const rawStartMs = entry.startDt.getTime();
+      const rawEndMs =
+        !isNaN(entry.endDt.getTime()) && entry.endDt.getTime() > rawStartMs
+          ? entry.endDt.getTime()
+          : rawStartMs + 60 * 60 * 1000;
+
+      const clampedStartMs = Math.max(dayStartMs, Math.min(dayEndMs, rawStartMs));
+      const clampedEndMs = Math.max(clampedStartMs, Math.min(dayEndMs, rawEndMs));
+
+      const startMin = (clampedStartMs - dayStartMs) / 60000;
+      const endMin = Math.min(1440, Math.max(startMin + 15, (clampedEndMs - dayStartMs) / 60000));
+      const durationMin = endMin - startMin;
+
+      timedItems.push({
+        entry,
+        startMin,
+        endMin,
+        durationMin,
+        col: 0,
+        numCols: 1,
+      });
+    }
+
+    // Sort by start time, then longest duration first
+    timedItems.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+
+    // Partition overlapping events into clusters and assign side-by-side columns
+    let cluster = [];
+    let clusterMaxEnd = -1;
+    const finalizeCluster = (items) => {
+      if (items.length === 0) return;
+      const colEnds = [];
+      for (const item of items) {
+        let placedCol = -1;
+        for (let c = 0; c < colEnds.length; c++) {
+          if (colEnds[c] <= item.startMin + 0.5) {
+            placedCol = c;
+            colEnds[c] = item.endMin;
+            break;
+          }
+        }
+        if (placedCol === -1) {
+          placedCol = colEnds.length;
+          colEnds.push(item.endMin);
+        }
+        item.col = placedCol;
+      }
+      const totalCols = colEnds.length;
+      for (const item of items) {
+        item.numCols = totalCols;
+      }
+    };
+
+    for (const item of timedItems) {
+      if (cluster.length > 0 && item.startMin >= clusterMaxEnd - 0.5) {
+        finalizeCluster(cluster);
+        cluster = [];
+        clusterMaxEnd = -1;
+      }
+      cluster.push(item);
+      if (item.endMin > clusterMaxEnd) clusterMaxEnd = item.endMin;
+    }
+    finalizeCluster(cluster);
+
+    let firstHour = 6;
+    let lastHour = 22;
+    for (const item of timedItems) {
+      firstHour = Math.min(firstHour, Math.floor(item.startMin / 60));
+      lastHour = Math.max(lastHour, Math.min(23, Math.ceil(item.endMin / 60) - 1));
     }
 
     if (todayAllDay.length > 0) {
       const allDayRow = document.createElement("div");
-      allDayRow.className = "hour-row";
+      allDayRow.className = "hour-row all-day-row";
       allDayRow.innerHTML = `
         <div class="hour-label">all day</div>
         <div class="hour-events">${todayAllDay
@@ -391,7 +463,12 @@ export default {
       timeline.appendChild(allDayRow);
     }
 
-    for (let hour = 6; hour <= 22; hour++) {
+    const HOUR_HEIGHT = 72;
+    const gridStage = document.createElement("div");
+    gridStage.className = "hour-grid-stage";
+    gridStage.style.setProperty("--hour-height", `${HOUR_HEIGHT}px`);
+
+    for (let hour = firstHour; hour <= lastHour; hour++) {
       const row = document.createElement("div");
       row.className = `hour-row ${hour === currentHour ? "current-hour" : ""}`;
       const label =
@@ -403,15 +480,65 @@ export default {
           ? "12 pm"
           : `${hour - 12} pm`;
 
-      const matching = todayByHour.get(hour) || [];
-      const eventsHtml = matching.map((e) => renderEventTile(e, "#00ABA9")).join("");
-
       row.innerHTML = `
         <div class="hour-label">${label}</div>
-        <div class="hour-events">${eventsHtml}</div>
+        <div class="hour-slot-cell"></div>
       `;
-      timeline.appendChild(row);
+      gridStage.appendChild(row);
     }
+
+    const eventsLayer = document.createElement("div");
+    eventsLayer.className = "hour-events-layer";
+
+    for (const item of timedItems) {
+      const { entry, startMin, endMin, durationMin, col, numCols } = item;
+      const { ev, startDt, endDt } = entry;
+      const cal = calMap.get(ev.calendarId);
+      const color = safeColor(cal && cal.color, "#00ABA9");
+      const timeLabel = `${formatTimeShort(startDt)} – ${formatTimeShort(endDt)}`;
+
+      const topPx = ((startMin - firstHour * 60) / 60) * HOUR_HEIGHT + 1;
+      const rawHeightPx = ((endMin - startMin) / 60) * HOUR_HEIGHT - 2;
+      const heightPx = Math.max(22, rawHeightPx);
+
+      const gapPx = 4;
+      const widthCalc =
+        numCols > 1
+          ? `calc((100% - ${(numCols - 1) * gapPx}px) / ${numCols})`
+          : "100%";
+      const leftCalc =
+        numCols > 1
+          ? `calc(${col} * ((100% - ${(numCols - 1) * gapPx}px) / ${numCols} + ${gapPx}px))`
+          : "0px";
+
+      const sizeClass =
+        durationMin <= 25
+          ? "timeline-ev-xs"
+          : durationMin < 45
+          ? "timeline-ev-sm"
+          : "";
+
+      const tile = document.createElement("div");
+      tile.className = `metro-event-tile timeline-event-tile ${sizeClass}`.trim();
+      tile.style.setProperty("--ev-color", color);
+      tile.style.top = `${topPx}px`;
+      tile.style.height = `${heightPx}px`;
+      tile.style.left = leftCalc;
+      tile.style.width = widthCalc;
+
+      tile.innerHTML = `
+        <div class="ev-time">${timeLabel}</div>
+        <div class="ev-title">${escapeHtml(ev.title)}</div>
+        <div class="ev-meta">
+          <span>${escapeHtml(ev.location || "")}</span>
+          <span>${escapeHtml(cal ? cal.name : "")}</span>
+        </div>
+      `;
+      eventsLayer.appendChild(tile);
+    }
+
+    gridStage.appendChild(eventsLayer);
+    timeline.appendChild(gridStage);
     leftPane.appendChild(timeline);
 
     // RIGHT PANE: Next 7 Days Agenda
