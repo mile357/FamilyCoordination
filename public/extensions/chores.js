@@ -1,7 +1,8 @@
 /**
  * Extension: Daily Chores
  * Supports multiple independent instances (e.g., per family member),
- * two pivots ("checklist" for repeating weekday chores, "one-off" for single tasks),
+ * three pivots ("checklist" for repeating weekday chores, "one-off" for single tasks,
+ * and "history" for a 7-day log of completed tasks and undone daily chores),
  * inline pencil-icon editing/deletion, and a 3-minute idle "attract mode" pivot rotator.
  */
 
@@ -16,6 +17,7 @@ const WEEKDAYS = [
 ];
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const PIVOT_ORDER = ["checklist", "one-off", "history"];
 
 // Per-slot UI state (active pivot, inline editing chore ID, animation flag)
 const slotUiMap = new Map();
@@ -23,7 +25,7 @@ const slotUiMap = new Map();
 function getSlotUi(slotId) {
   if (!slotUiMap.has(slotId)) {
     slotUiMap.set(slotId, {
-      pivot: "checklist", // "checklist" | "one-off"
+      pivot: "checklist", // "checklist" | "one-off" | "history"
       editingChoreId: null,
       animatePivot: false,
       transitioning: false,
@@ -65,19 +67,71 @@ function switchPivotAnimated(slotId, nextPivot, rerenderSlot) {
   }, 260);
 }
 
+function getDayInfo(daysAgo = 0) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysAgo);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const iso = `${y}-${m}-${day}`;
+  const dayIdx = d.getDay();
+  const dayName =
+    daysAgo === 0
+      ? "today"
+      : daysAgo === 1
+      ? "yesterday"
+      : d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const dateLabel = d
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    .toLowerCase();
+  return { iso, dateObj: d, dayIdx, dayName, dateLabel };
+}
+
 function getTodayIsoDate() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return getDayInfo(0).iso;
+}
+
+function isChoreDoneOnDate(chore, dateStr) {
+  if (chore.repeating) {
+    if (Array.isArray(chore.completedDates)) {
+      return chore.completedDates.includes(dateStr);
+    }
+    return chore.completedDate === dateStr;
+  }
+  return Boolean(chore.done) && chore.completedDate === dateStr;
 }
 
 function isChoreDoneToday(chore, todayStr) {
   if (chore.repeating) {
-    return chore.completedDate === todayStr;
+    return isChoreDoneOnDate(chore, todayStr);
   }
   return Boolean(chore.done);
+}
+
+function toggleChoreOnDate(chore, dateStr, todayStr) {
+  if (chore.repeating) {
+    if (!Array.isArray(chore.completedDates)) {
+      chore.completedDates = chore.completedDate ? [chore.completedDate] : [];
+    }
+    if (chore.completedDates.includes(dateStr)) {
+      chore.completedDates = chore.completedDates.filter((d) => d !== dateStr);
+    } else {
+      chore.completedDates.push(dateStr);
+      chore.completedDates.sort();
+    }
+    chore.completedDate = chore.completedDates.includes(todayStr)
+      ? todayStr
+      : chore.completedDates[chore.completedDates.length - 1] || null;
+  } else {
+    if (chore.done && (!chore.completedDate || chore.completedDate === dateStr)) {
+      chore.done = false;
+      chore.completedDate = null;
+    } else {
+      chore.done = true;
+      chore.completedDate = dateStr;
+    }
+  }
 }
 
 function formatRepeatDays(days) {
@@ -106,6 +160,8 @@ function formatRepeatDays(days) {
 function normalizeChoresList(chores, todayStr) {
   if (!Array.isArray(chores)) return [];
   let mutated = false;
+  const cutoffIso = getDayInfo(30).iso;
+
   chores.forEach((c) => {
     if (typeof c.repeating !== "boolean") {
       // Migrate legacy default chores: chore-4 becomes a sample one-off, others become daily checklist items
@@ -120,6 +176,42 @@ function normalizeChoresList(chores, todayStr) {
       if (c.done && !c.completedDate) {
         c.completedDate = todayStr;
         delete c.done;
+        mutated = true;
+      }
+      if (!Array.isArray(c.completedDates)) {
+        c.completedDates = [];
+        mutated = true;
+      }
+      if (
+        typeof c.completedDate === "string" &&
+        c.completedDate &&
+        !c.completedDates.includes(c.completedDate)
+      ) {
+        c.completedDates.push(c.completedDate);
+        mutated = true;
+      }
+      const cleaned = [
+        ...new Set(
+          c.completedDates.filter((d) => typeof d === "string" && d >= cutoffIso)
+        ),
+      ].sort();
+      if (cleaned.length !== c.completedDates.length) {
+        c.completedDates = cleaned;
+        mutated = true;
+      }
+      const latest = c.completedDates.includes(todayStr)
+        ? todayStr
+        : c.completedDates[c.completedDates.length - 1] || null;
+      if (c.completedDate !== latest) {
+        c.completedDate = latest;
+        mutated = true;
+      }
+    } else {
+      if (c.done && !c.completedDate) {
+        c.completedDate = todayStr;
+        mutated = true;
+      } else if (!c.done && c.completedDate) {
+        c.completedDate = null;
         mutated = true;
       }
     }
@@ -181,7 +273,8 @@ function ensureAttractModeWatcher() {
       if (now >= ui.nextRotateAt) {
         // Schedule next rotation with per-instance random cadence (11s – 17s)
         ui.nextRotateAt = now + 11000 + Math.floor(Math.random() * 6000);
-        const nextPivot = ui.pivot === "checklist" ? "one-off" : "checklist";
+        const curIdx = PIVOT_ORDER.indexOf(ui.pivot);
+        const nextPivot = PIVOT_ORDER[(curIdx + 1) % PIVOT_ORDER.length];
         switchPivotAnimated(slotId, nextPivot, rerenderSlot);
       }
     });
@@ -194,11 +287,11 @@ export default {
   allowMultiple: true,
   name: "daily chores",
   description:
-    "Repeating weekday checklist & one-off tasks. Supports multiple independent lists (e.g. per person).",
+    "Repeating weekday checklist, one-off tasks & 7-day history. Supports multiple independent lists (e.g. per person).",
   accent: "#FA6800",
   defaultSize: "half",
   infoText:
-    "Add repeating weekday chores to 'checklist' or single tasks to 'one-off'. After 3 minutes of inactivity, pivots rotate automatically.",
+    "Add repeating weekday chores to 'checklist', single tasks to 'one-off', or review the past 7 days in 'history'. After 3 minutes of inactivity, pivots rotate automatically.",
   defaultState: {
     chores: [
       {
@@ -207,6 +300,7 @@ export default {
         repeating: true,
         days: [1, 2, 3, 4, 5],
         completedDate: null,
+        completedDates: [],
       },
       {
         id: "chore-2",
@@ -214,6 +308,7 @@ export default {
         repeating: true,
         days: [0, 1, 2, 3, 4, 5, 6],
         completedDate: null,
+        completedDates: [],
       },
       {
         id: "chore-3",
@@ -221,18 +316,21 @@ export default {
         repeating: true,
         days: [2, 5],
         completedDate: null,
+        completedDates: [],
       },
       {
         id: "chore-4",
         title: "Pack soccer shin guards & water bottle",
         repeating: false,
         done: false,
+        completedDate: null,
       },
       {
         id: "chore-5",
         title: "Clean out garage sports bin",
         repeating: false,
         done: false,
+        completedDate: null,
       },
     ],
   },
@@ -240,7 +338,7 @@ export default {
   renderAddForm(ctx) {
     const { slot, appState, closeDrawer, saveState } = ctx;
     const ui = getSlotUi(slot.id);
-    let isRepeating = ui.pivot === "checklist";
+    let isRepeating = ui.pivot !== "one-off";
     let selectedDays = new Set(ALL_DAYS);
 
     const wrap = document.createElement("div");
@@ -310,12 +408,14 @@ export default {
             repeating: true,
             days: [...selectedDays].sort((a, b) => a - b),
             completedDate: null,
+            completedDates: [],
           }
         : {
             id: "chore-" + Date.now(),
             title,
             repeating: false,
             done: false,
+            completedDate: null,
           };
 
       appState.chores.unshift(newChore);
@@ -357,6 +457,7 @@ export default {
     const oneOffRemaining = oneOffChores.filter((c) => !c.done).length;
 
     const wrap = document.createElement("div");
+    wrap.className = "chore-slot-wrap";
     wrap.innerHTML = `
       <div class="sub-pivots" style="margin-bottom:10px;">
         <button type="button" class="pivot-tab ${ui.pivot === "checklist" ? "active" : ""}" data-pivot="checklist">
@@ -365,8 +466,11 @@ export default {
         <button type="button" class="pivot-tab ${ui.pivot === "one-off" ? "active" : ""}" data-pivot="one-off">
           one-off (${oneOffRemaining})
         </button>
+        <button type="button" class="pivot-tab ${ui.pivot === "history" ? "active" : ""}" data-pivot="history">
+          history
+        </button>
       </div>
-      <div class="metro-list ${shouldAnimate ? "chore-pivot-animate" : ""}" id="choreList_${slot.id}" data-scroll-pane="chores-${slot.id}"></div>
+      <div class="metro-list chore-scroll-list ${shouldAnimate ? "chore-pivot-animate" : ""}" id="choreList_${slot.id}" data-scroll-pane="chores-${slot.id}"></div>
     `;
 
     wrap.querySelectorAll(".pivot-tab").forEach((btn) => {
@@ -377,6 +481,96 @@ export default {
     });
 
     const listEl = wrap.querySelector(`#choreList_${slot.id}`);
+
+    // ========================================================================
+    // 7-DAY HISTORY PIVOT (READ-ONLY LOG OF DONE ITEMS & UNDONE DAILY CHORES)
+    // ========================================================================
+    if (ui.pivot === "history") {
+      for (let daysAgo = 0; daysAgo < 7; daysAgo++) {
+        const { iso, dayIdx, dayName, dateLabel } = getDayInfo(daysAgo);
+
+        const doneItems = allChores.filter((c) => isChoreDoneOnDate(c, iso));
+        const scheduledRepeating = repeatingChores.filter((c) =>
+          (c.days || ALL_DAYS).includes(dayIdx)
+        );
+        const undoneRepeating = scheduledRepeating.filter(
+          (c) => !isChoreDoneOnDate(c, iso)
+        );
+
+        const doneScheduledCount = scheduledRepeating.length - undoneRepeating.length;
+        const extraDoneCount = doneItems.length - doneScheduledCount;
+
+        let summaryMeta = dateLabel;
+        if (scheduledRepeating.length > 0) {
+          summaryMeta = `${doneScheduledCount}/${scheduledRepeating.length}${
+            extraDoneCount > 0 ? ` +${extraDoneCount}` : ""
+          } · ${dateLabel}`;
+        } else if (doneItems.length > 0) {
+          summaryMeta = `${doneItems.length} done · ${dateLabel}`;
+        }
+
+        const dayGroup = document.createElement("div");
+        dayGroup.className = "agenda-day-group chore-history-day";
+        if (shouldAnimate) {
+          dayGroup.style.animationDelay = `${daysAgo * 45}ms`;
+        }
+
+        dayGroup.innerHTML = `
+          <div class="agenda-day-header">
+            <span class="agenda-day-name ${daysAgo === 0 ? "is-today" : ""}">${dayName}</span>
+            <span class="agenda-day-date">${summaryMeta}</span>
+          </div>
+          <div class="metro-list chore-history-day-list"></div>
+        `;
+
+        const dayListEl = dayGroup.querySelector(".chore-history-day-list");
+
+        if (doneItems.length === 0 && undoneRepeating.length === 0) {
+          dayListEl.innerHTML = `<div class="agenda-empty">no daily chores scheduled</div>`;
+          listEl.appendChild(dayGroup);
+          continue;
+        }
+
+        const entries = [
+          ...doneItems.map((chore) => ({ chore, isDone: true })),
+          ...undoneRepeating.map((chore) => ({ chore, isDone: false })),
+        ];
+
+        entries.forEach(({ chore, isDone }) => {
+          const row = document.createElement("div");
+          row.className = `metro-list-item chore-history-row ${isDone ? "is-done" : "is-undone"}`;
+          row.style.setProperty("--slot-accent", "var(--slot-accent, #FA6800)");
+
+          const subLabel = isDone
+            ? chore.repeating
+              ? ""
+              : "one-off"
+            : daysAgo === 0
+            ? "left undone today"
+            : "left undone";
+
+          row.innerHTML = `
+            <div class="check-row readonly">
+              <div class="metro-checkbox ${isDone ? "checked" : "missed"}">${isDone ? "✓" : ""}</div>
+              <div class="item-text-wrap">
+                <span class="item-primary ${isDone ? "" : "undone-text"}">${escapeHtml(chore.title)}</span>
+                ${
+                  subLabel
+                    ? `<span class="item-secondary">${escapeHtml(subLabel)}</span>`
+                    : ""
+                }
+              </div>
+            </div>
+          `;
+
+          dayListEl.appendChild(row);
+        });
+
+        listEl.appendChild(dayGroup);
+      }
+
+      return wrap;
+    }
 
     const visibleChores =
       ui.pivot === "checklist"
@@ -483,15 +677,20 @@ export default {
         const commitEdit = () => {
           const newTitle = titleInp.value.trim();
           if (!newTitle) return;
+          const wasDoneToday = isChoreDoneToday(c, todayStr);
           c.title = newTitle;
           c.repeating = editRepeating;
           if (editRepeating) {
             c.days = [...editDays].sort((a, b) => a - b);
+            if (!Array.isArray(c.completedDates)) {
+              c.completedDates = wasDoneToday ? [c.completedDate || todayStr] : [];
+            }
             delete c.done;
           } else {
             delete c.days;
-            delete c.completedDate;
-            c.done = Boolean(c.done);
+            delete c.completedDates;
+            c.done = Boolean(c.done || wasDoneToday);
+            c.completedDate = c.done ? c.completedDate || todayStr : null;
           }
           ui.editingChoreId = null;
           ui.pivot = editRepeating ? "checklist" : "one-off";
@@ -544,11 +743,7 @@ export default {
 
       const checkRow = row.querySelector(".check-row");
       const toggleChore = () => {
-        if (c.repeating) {
-          c.completedDate = isChoreDoneToday(c, todayStr) ? null : todayStr;
-        } else {
-          c.done = !c.done;
-        }
+        toggleChoreOnDate(c, todayStr, todayStr);
         saveState();
       };
       checkRow.addEventListener("click", toggleChore);

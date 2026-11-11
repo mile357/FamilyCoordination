@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "34";
+const ASSET_VERSION = "36";
 
 const METRO_ACCENTS = [
   { name: "Teal", hex: "#00ABA9" },
