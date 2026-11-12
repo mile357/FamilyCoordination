@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#000000"/>
+  <!-- Top-left large Metro tile (Teal) -->
+  <rect x="64" y="64" width="232" height="232" fill="#00ABA9"/>
+  <!-- Top-right tall/half Metro tile (Cobalt) -->
+  <rect x="320" y="64" width="128" height="104" fill="#1BA1E2"/>
+  <rect x="320" y="192" width="128" height="104" fill="#60A917"/>
+  <!-- Bottom-left wide Metro tile (Orange) -->
+  <rect x="64" y="320" width="176" height="128" fill="#FA6800"/>
+  <!-- Bottom-right Metro tile (Violet) -->
+  <rect x="264" y="320" width="184" height="128" fill="#6A00FF"/>
+</svg>

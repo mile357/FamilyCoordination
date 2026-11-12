@@ -52,6 +52,7 @@ def get_initial_state():
             "theme": "dark",
             "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
             "kioskMode": False,
+            "keepScreenAwake": True,
         },
         "extensions": {},
         "columns": [],
@@ -1097,6 +1098,15 @@ def fetch_weather_for_zip(zip_code):
 
 
 class HubRequestHandler(SimpleHTTPRequestHandler):
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".webmanifest": "application/manifest+json",
+        ".json": "application/json",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".js": "application/javascript",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
 
@@ -1107,6 +1117,8 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
+        if getattr(self, "path", "").split("?", 1)[0] == "/sw.js":
+            self.send_header("Service-Worker-Allowed", "/")
         super().end_headers()
 
     def _send_json(self, data, status=200):

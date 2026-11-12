@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "37";
+const ASSET_VERSION = "38";
 
 const DEFAULT_SETTINGS = {
   familyName: "family hub",
@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
   theme: "dark",
   zipCode: "98052",
   kioskMode: false,
+  keepScreenAwake: true,
 };
 
 function sanitizeId(rawId, prefix = "id") {
@@ -638,6 +639,7 @@ async function loadState() {
   const didSeed = syncExtensionsWithAppState();
   snapshotSyncedState(appState);
   applyThemeAndAccent();
+  syncWakeLockWithSettings();
   renderAll();
   refreshWeather();
 
@@ -982,11 +984,15 @@ function getContrastColor(hexColor) {
 function applyThemeAndAccent() {
   if (!appState) return;
   const accentHex = sanitizeColor(appState.settings.accentColor, "#00ABA9");
-  document.documentElement.setAttribute("data-theme", appState.settings.theme || "dark");
+  const theme = appState.settings.theme || "dark";
+  document.documentElement.setAttribute("data-theme", theme);
   document.documentElement.style.setProperty("--accent", accentHex);
   document.documentElement.style.setProperty("--accent-fg", getContrastColor(accentHex));
   const titleEl = document.getElementById("hubTitle");
   if (titleEl) titleEl.textContent = appState.settings.familyName || "family hub";
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.setAttribute("content", theme === "light" ? "#FFFFFF" : "#000000");
+  syncWakeLockWithSettings();
 }
 
 // ============================================================================
@@ -1836,7 +1842,7 @@ function renderAll() {
 // FLYOUT DRAWER: GLOBAL SETTINGS, COLUMN BUILDER & WIDGET TRASH CAN
 // ============================================================================
 function openFlyout(mode, pivot = null) {
-  if (mode === "extensions" || mode === "appearance" || mode === "system") {
+  if (mode === "extensions" || mode === "appearance" || mode === "system" || mode === "install") {
     uiState.flyoutMode = "settings";
     uiState.settingsPivot = mode;
   } else {
@@ -1974,7 +1980,7 @@ function renderFlyoutContent() {
   }
 
   if (mode === "settings") {
-    const activeTab = ["extensions", "appearance", "system"].includes(uiState.settingsPivot)
+    const activeTab = ["extensions", "appearance", "system", "install"].includes(uiState.settingsPivot)
       ? uiState.settingsPivot
       : "extensions";
     const isDark = (appState.settings.theme || "dark") === "dark";
@@ -1985,15 +1991,18 @@ function renderFlyoutContent() {
         <button class="metro-ellipsis-btn global-ellipsis flyout-close-btn active" id="btnCloseFlyout" title="Close settings">✕</button>
       </div>
 
-      <div class="sub-pivots" style="gap:24px; margin-bottom:4px;">
-        <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions" style="font-size:22px;">
+      <div class="sub-pivots" style="gap:20px; margin-bottom:4px; flex-wrap:wrap;">
+        <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions" style="font-size:21px;">
           extensions
         </button>
-        <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:22px;">
+        <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:21px;">
           appearance
         </button>
-        <button class="pivot-tab ${activeTab === "system" ? "active" : ""}" data-tab="system" style="font-size:22px;">
+        <button class="pivot-tab ${activeTab === "system" ? "active" : ""}" data-tab="system" style="font-size:21px;">
           system
+        </button>
+        <button class="pivot-tab ${activeTab === "install" ? "active" : ""}" data-tab="install" style="font-size:21px;">
+          install
         </button>
       </div>
 
@@ -2374,6 +2383,178 @@ function renderFlyoutContent() {
           await saveState("Cleared all hub data");
         }
       );
+    } else if (activeTab === "install") {
+      const keepAwake = appState.settings.keepScreenAwake !== false;
+      const isSecure = Boolean(window.isSecureContext);
+      const wakeSupported = "wakeLock" in navigator;
+      const wakeActive = Boolean(wakeLockSentinel && !wakeLockSentinel.released);
+      const isStandalone = isRunningStandalonePwa();
+      const isDocFullscreen = Boolean(document.fullscreenElement);
+      const hubOriginUrl =
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+          ? (appState && appState._lanOrigin) || window.location.origin
+          : window.location.origin;
+      const chromeFlagUrl = "chrome://flags/#unsafely-treat-insecure-origin-as-secure";
+
+      let wakeStatusText = "";
+      let wakeAccent = "var(--accent)";
+      if (!keepAwake) {
+        wakeStatusText = "Disabled — screen will follow standard device sleep timeout.";
+        wakeAccent = "var(--border-strong)";
+      } else if (wakeActive) {
+        wakeStatusText = "✓ Active — Screen Wake Lock is keeping the display awake.";
+        wakeAccent = "#60A917";
+      } else if (!isSecure) {
+        wakeStatusText =
+          "⚠ Blocked on plain HTTP LAN — follow Step 1 below to enable Chrome's secure origin flag on this tablet.";
+        wakeAccent = "#F0A30A";
+      } else if (wakeSupported) {
+        wakeStatusText = "Ready — tap anywhere on the page to lock the screen awake.";
+        wakeAccent = "var(--accent)";
+      } else {
+        wakeStatusText = "Screen Wake Lock API is not supported by this browser.";
+        wakeAccent = "#F0A30A";
+      }
+
+      const displayModeLabel = isStandalone
+        ? "✓ Installed Fullscreen PWA"
+        : isDocFullscreen
+        ? "✓ Browser Fullscreen Active"
+        : "Browser Tab";
+
+      tabBody.innerHTML = `
+        <div class="flyout-section">
+          <div class="flyout-section-title">tablet &amp; pwa status</div>
+
+          <div class="extension-card" style="--ext-color: ${wakeAccent};">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">keep screen awake</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                ${escapeHtml(wakeStatusText)}
+              </div>
+            </div>
+            <div class="metro-toggle ${keepAwake ? "on" : ""}" id="toggleWakeLockSwitch" role="switch" aria-checked="${Boolean(keepAwake)}" tabindex="0"></div>
+          </div>
+
+          <div class="extension-card" style="--ext-color: var(--accent);">
+            <div>
+              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">display mode</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                ${escapeHtml(displayModeLabel)} · ${isSecure ? "✓ Secure Context" : "⚠ HTTP LAN Context"}
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-shrink:0; align-items:center;">
+              ${
+                deferredInstallPrompt
+                  ? `<button class="metro-btn accent" id="btnInstallPwa">install app</button>`
+                  : ""
+              }
+              <button class="metro-btn" id="btnToggleFullscreen">${
+                isDocFullscreen ? "exit fullscreen" : "fullscreen"
+              }</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">pixel tablet pwa setup (3 steps)</div>
+
+          <div class="extension-card" style="--ext-color: #1BA1E2; align-items:flex-start; flex-direction:column; gap:8px;">
+            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+              1. allow lan origin in chrome (one-time, 20 sec)
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+              Chrome requires a secure context before it enables <strong>PWA installation</strong> and <strong>Screen Wake Lock</strong> over local <code>http://</code> LAN addresses. On your Pixel Tablet, copy the Chrome flag address below, paste it into Chrome's address bar, paste your Hub URL into the box, set it to <strong>Enabled</strong>, and tap <strong>Relaunch</strong>:
+            </div>
+            <div class="help-code-row" style="width:100%;">
+              <span class="help-code-text">${escapeHtml(chromeFlagUrl)}</span>
+              <button class="metro-btn" id="btnCopyFlagUrl" style="flex-shrink:0;">copy flag</button>
+            </div>
+            <div class="help-code-row" style="width:100%; margin-top:2px;">
+              <span class="help-code-text">${escapeHtml(hubOriginUrl)}</span>
+              <button class="metro-btn accent" id="btnCopyHubUrl" style="flex-shrink:0;">copy hub url</button>
+            </div>
+          </div>
+
+          <div class="extension-card" style="--ext-color: #60A917; align-items:flex-start; flex-direction:column; gap:6px;">
+            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+              2. install as a fullscreen pwa
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+              After Chrome relaunches, open Chrome's menu (<strong>⋮</strong>) → <strong>Add to Home screen</strong> → <strong>Install</strong>. Launch <strong>family hub</strong> from the Pixel Tablet home screen to run in full-bleed fullscreen with the Android status and browser bars hidden.
+            </div>
+          </div>
+
+          <div class="extension-card" style="--ext-color: #FA6800; align-items:flex-start; flex-direction:column; gap:6px;">
+            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+              3. charging speaker dock tip (optional)
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+              If the Pixel Tablet stays docked on its speaker stand, you can also enable <strong>Android Settings → System → Developer options → Stay awake</strong> so the display never sleeps while charging, even across system updates.
+            </div>
+          </div>
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">quick guide</div>
+          <div class="extension-card" style="--ext-color: var(--accent); align-items:flex-start; flex-direction:column; gap:6px;">
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+              • <strong>widget commands (•••)</strong>: tap any widget header or <strong>•••</strong> to add items, filter, or rename.<br/>
+              • <strong>customize layout</strong>: open <strong>settings → extensions → customize layout</strong> to move, resize (<strong>½</strong> / <strong>⤢</strong>), or restore trashed widgets.<br/>
+              • <strong>phone companion (qr)</strong>: tap <strong>qr</strong> inside Groceries or Chores to scan and check off items from your phone.
+            </div>
+          </div>
+        </div>
+      `;
+
+      const wakeSwitch = tabBody.querySelector("#toggleWakeLockSwitch");
+      const toggleWakeLockPref = async () => {
+        appState.settings.keepScreenAwake = !(appState.settings.keepScreenAwake !== false);
+        await syncWakeLockWithSettings();
+        await saveState(
+          appState.settings.keepScreenAwake
+            ? "Screen Wake Lock enabled"
+            : "Screen Wake Lock disabled"
+        );
+      };
+      wakeSwitch.addEventListener("click", toggleWakeLockPref);
+      wakeSwitch.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleWakeLockPref();
+        }
+      });
+
+      const installBtn = tabBody.querySelector("#btnInstallPwa");
+      if (installBtn) {
+        installBtn.addEventListener("click", async () => {
+          if (!deferredInstallPrompt) return;
+          try {
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+          } catch (e) {}
+          deferredInstallPrompt = null;
+          renderFlyoutContent();
+        });
+      }
+
+      const fsBtn = tabBody.querySelector("#btnToggleFullscreen");
+      if (fsBtn) {
+        fsBtn.addEventListener("click", async () => {
+          await togglePageFullscreen();
+          renderFlyoutContent();
+        });
+      }
+
+      tabBody.querySelector("#btnCopyFlagUrl").addEventListener("click", async () => {
+        const ok = await copyTextToClipboard(chromeFlagUrl);
+        showToast(ok ? "Copied Chrome flag URL" : "Select and copy the flag URL above");
+      });
+
+      tabBody.querySelector("#btnCopyHubUrl").addEventListener("click", async () => {
+        const ok = await copyTextToClipboard(hubOriginUrl);
+        showToast(ok ? `Copied ${hubOriginUrl}` : "Select and copy the Hub URL above");
+      });
     }
   } else if (mode === "add-column" || mode === "fill-half") {
     const isHalfFill = mode === "fill-half";
@@ -2505,6 +2686,139 @@ function renderFlyoutContent() {
 }
 
 // ============================================================================
+// PWA SERVICE WORKER, SCREEN WAKE LOCK & FULLSCREEN MANAGEMENT
+// ============================================================================
+let wakeLockSentinel = null;
+let deferredInstallPrompt = null;
+
+function isRunningStandalonePwa() {
+  try {
+    return (
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
+function refreshHelpFlyoutIfOpen() {
+  if (uiState.flyoutMode === "settings" && uiState.settingsPivot === "install") {
+    renderFlyoutContent();
+  }
+}
+
+async function requestScreenWakeLock() {
+  if (!appState || !appState.settings || appState.settings.keepScreenAwake === false) {
+    return false;
+  }
+  if (!("wakeLock" in navigator) || !window.isSecureContext) {
+    return false;
+  }
+  if (document.visibilityState !== "visible") {
+    return false;
+  }
+  if (wakeLockSentinel && !wakeLockSentinel.released) {
+    return true;
+  }
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request("screen");
+    wakeLockSentinel.addEventListener("release", () => {
+      refreshHelpFlyoutIfOpen();
+      if (
+        document.visibilityState === "visible" &&
+        appState &&
+        appState.settings &&
+        appState.settings.keepScreenAwake !== false
+      ) {
+        setTimeout(() => {
+          requestScreenWakeLock();
+        }, 500);
+      }
+    });
+    refreshHelpFlyoutIfOpen();
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function releaseScreenWakeLock() {
+  if (wakeLockSentinel) {
+    try {
+      await wakeLockSentinel.release();
+    } catch (e) {}
+    wakeLockSentinel = null;
+  }
+  refreshHelpFlyoutIfOpen();
+}
+
+async function syncWakeLockWithSettings() {
+  if (appState && appState.settings && appState.settings.keepScreenAwake === false) {
+    await releaseScreenWakeLock();
+  } else {
+    await requestScreenWakeLock();
+  }
+}
+
+async function togglePageFullscreen() {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+    } else if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+  } catch (e) {
+    showToast("Fullscreen is managed by your browser or installed PWA");
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {}
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-9999px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return Boolean(ok);
+  } catch (e) {
+    return false;
+  }
+}
+
+function registerPwaServiceWorker() {
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register(`/sw.js?v=${ASSET_VERSION}`).catch(() => {});
+  }
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    refreshHelpFlyoutIfOpen();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    refreshHelpFlyoutIfOpen();
+    showToast("Installed Family Hub PWA");
+  });
+  document.addEventListener("fullscreenchange", () => {
+    refreshHelpFlyoutIfOpen();
+  });
+}
+
+// ============================================================================
 // CLOCK, THEME & GLOBAL LISTENERS
 // ============================================================================
 let lastRenderedHourKey = `${new Date().toDateString()}-${new Date().getHours()}`;
@@ -2559,6 +2873,7 @@ function escapeHtml(str) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  registerPwaServiceWorker();
   updateClock();
   setInterval(updateClock, 15000);
   setInterval(refreshWeather, 15 * 60 * 1000);
@@ -2568,9 +2883,26 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       pollServerState();
+      syncWakeLockWithSettings();
     }
   });
-  window.addEventListener("focus", pollServerState);
+  window.addEventListener("focus", () => {
+    pollServerState();
+    syncWakeLockWithSettings();
+  });
+
+  const retryWakeOnInteraction = () => {
+    if (
+      appState &&
+      appState.settings &&
+      appState.settings.keepScreenAwake !== false &&
+      (!wakeLockSentinel || wakeLockSentinel.released)
+    ) {
+      requestScreenWakeLock();
+    }
+  };
+  document.addEventListener("pointerdown", retryWakeOnInteraction, { passive: true });
+  document.addEventListener("keydown", retryWakeOnInteraction, { passive: true });
 
   const headerTrigger = document.getElementById("headerSettingsTrigger");
   if (headerTrigger) {
