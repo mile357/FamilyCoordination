@@ -3,7 +3,7 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
-import { renderQrSvg } from "../qr.js?v=30";
+import { renderQrSvg } from "../qr.js?v=37";
 
 export default {
   id: "groceries",
@@ -62,6 +62,8 @@ export default {
 
   renderAddForm(ctx) {
     const { slot, appState, uiState, closeDrawer, saveState, escapeHtml } = ctx;
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
     const groceries = appState.groceries || [];
     const unchecked = groceries.filter((g) => !g.checked);
     const checkedCount = groceries.length - unchecked.length;
@@ -73,16 +75,16 @@ export default {
     const wrap = document.createElement("div");
     wrap.innerHTML = `
       <div class="quick-form" style="margin-bottom:0;">
-        <input class="metro-input" id="grocInput_${slot.id}" placeholder="add grocery item..." />
-        <button class="metro-btn accent" style="--accent:#60A917" id="btnAddGroc_${slot.id}">add</button>
+        <input class="metro-input" id="grocInput_${sid}" placeholder="add grocery item..." />
+        <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF" id="btnAddGroc_${sid}">add</button>
         ${
           checkedCount > 0
-            ? `<button class="metro-btn subtle" id="btnClearChecked_${slot.id}">clear (${checkedCount})</button>`
+            ? `<button class="metro-btn subtle" id="btnClearChecked_${sid}">clear (${checkedCount})</button>`
             : ""
         }
       </div>
       <div class="groc-qr-card">
-        <div id="grocQrBox_${slot.id}"></div>
+        <div id="grocQrBox_${sid}"></div>
         <div class="groc-qr-info">
           <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:#60A917;">
             take on phone
@@ -91,13 +93,13 @@ export default {
             <button type="button" class="groc-qr-mode-btn" data-qrmode="text">copy text</button>
             <button type="button" class="groc-qr-mode-btn" data-qrmode="webapp">webapp list</button>
           </div>
-          <div class="groc-qr-caption" id="grocQrCaption_${slot.id}"></div>
+          <div class="groc-qr-caption" id="grocQrCaption_${sid}"></div>
         </div>
       </div>
     `;
 
-    const qrBoxEl = wrap.querySelector(`#grocQrBox_${slot.id}`);
-    const qrCaptionEl = wrap.querySelector(`#grocQrCaption_${slot.id}`);
+    const qrBoxEl = wrap.querySelector(`#grocQrBox_${selId}`);
+    const qrCaptionEl = wrap.querySelector(`#grocQrCaption_${selId}`);
     const modeBtns = wrap.querySelectorAll(".groc-qr-mode-btn");
 
     const updateQrPanel = () => {
@@ -120,17 +122,39 @@ export default {
           origin.replace(/^https?:\/\//, "")
         )}/go.html</code>). Caches for the store &amp; syncs back home.`;
       } else {
-        const itemsForText = (unchecked.length > 0 ? unchecked : groceries).map(
+        const allLines = (unchecked.length > 0 ? unchecked : groceries).map(
           (g) => `- ${g.name}`
         );
+        const encoder = new TextEncoder();
+        const MAX_QR_BYTES = 220;
+        const fittedLines = [];
+        let usedBytes = 0;
+
+        for (const line of allLines) {
+          const candidate = fittedLines.length === 0 ? line : "\n" + line;
+          const byteLen = encoder.encode(candidate).length;
+          if (usedBytes + byteLen > MAX_QR_BYTES) {
+            if (fittedLines.length === 0) {
+              let cut = line;
+              while (encoder.encode(cut + "…").length > MAX_QR_BYTES && cut.length > 0) {
+                cut = cut.slice(0, -1);
+              }
+              fittedLines.push(cut + "…");
+            }
+            break;
+          }
+          fittedLines.push(line);
+          usedBytes += byteLen;
+        }
+
         const textPayload =
-          itemsForText.length > 0
-            ? itemsForText.join("\n").slice(0, 220)
-            : "Grocery list is empty";
+          fittedLines.length > 0 ? fittedLines.join("\n") : "Grocery list is empty";
         qrBoxEl.innerHTML = renderQrSvg(textPayload, 108);
-        qrCaptionEl.textContent = `Scan with your phone camera and tap "Copy" to paste ${itemsForText.length} item${
-          itemsForText.length === 1 ? "" : "s"
-        } into Notes.`;
+        const countLabel =
+          fittedLines.length < allLines.length
+            ? `${fittedLines.length} of ${allLines.length} items`
+            : `${fittedLines.length} item${fittedLines.length === 1 ? "" : "s"}`;
+        qrCaptionEl.textContent = `Scan with your phone camera and tap "Copy" to paste ${countLabel} into Notes.`;
       }
     };
 
@@ -143,13 +167,13 @@ export default {
 
     updateQrPanel();
 
-    const input = wrap.querySelector(`#grocInput_${slot.id}`);
+    const input = wrap.querySelector(`#grocInput_${selId}`);
     const addGroc = () => {
       const val = input.value.trim();
       if (!val) return;
       if (!Array.isArray(appState.groceries)) appState.groceries = [];
       appState.groceries.unshift({
-        id: "groc-" + Date.now(),
+        id: "groc-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
         name: val,
         checked: false,
         fromMeal: null,
@@ -158,12 +182,16 @@ export default {
       saveState(`Added "${val}" to groceries`);
     };
 
-    wrap.querySelector(`#btnAddGroc_${slot.id}`).addEventListener("click", addGroc);
+    wrap.querySelector(`#btnAddGroc_${selId}`).addEventListener("click", addGroc);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") addGroc();
+      if (e.key === "Escape") {
+        closeDrawer();
+        ctx.renderAll();
+      }
     });
 
-    const clearBtn = wrap.querySelector(`#btnClearChecked_${slot.id}`);
+    const clearBtn = wrap.querySelector(`#btnClearChecked_${selId}`);
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
         appState.groceries = (appState.groceries || []).filter((g) => !g.checked);
@@ -177,13 +205,20 @@ export default {
 
   renderSlot(ctx) {
     const { slot, appState, saveState, escapeHtml } = ctx;
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
     const wrap = document.createElement("div");
-    wrap.innerHTML = `<div class="metro-list" id="grocList_${slot.id}"></div>`;
+    wrap.innerHTML = `<div class="metro-list" id="grocList_${sid}"></div>`;
 
-    const listEl = wrap.querySelector(`#grocList_${slot.id}`);
+    const listEl = wrap.querySelector(`#grocList_${selId}`);
     const sorted = [...(appState.groceries || [])].sort(
       (a, b) => Number(a.checked) - Number(b.checked)
     );
+
+    if (sorted.length === 0) {
+      listEl.innerHTML = `<div class="agenda-empty" style="padding:8px 2px;">grocery list is empty — tap ••• above to add items</div>`;
+      return wrap;
+    }
 
     sorted.forEach((item) => {
       const row = document.createElement("div");

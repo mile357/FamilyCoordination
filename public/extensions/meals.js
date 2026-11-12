@@ -4,12 +4,14 @@
  * and checks `ctx.canHandle("groceries:add-items")` to see if any active extension handles groceries.
  */
 function dispatchIngredients(ctx, mealName, ingredients) {
-  if (!ingredients || ingredients.length === 0) return 0;
+  if (!ingredients || ingredients.length === 0) return { added: 0, slotIds: [] };
   const responses = ctx.emit("groceries:add-items", {
     items: ingredients,
     source: mealName,
   });
-  return responses.reduce((sum, r) => sum + ((r.result && r.result.added) || 0), 0);
+  const added = responses.reduce((sum, r) => sum + ((r.result && r.result.added) || 0), 0);
+  const slotIds = responses.map((r) => r.slotId).filter(Boolean);
+  return { added, slotIds };
 }
 
 function getCatalogIngredients(entry) {
@@ -21,14 +23,24 @@ function getCatalogIngredients(entry) {
     : [];
 }
 
-function animateIngredientsToGroceries(sourceRect, ingredients) {
+function animateIngredientsToGroceries(sourceRect, ingredients, receiverSlotIds = []) {
   if (!sourceRect || !Array.isArray(ingredients) || ingredients.length === 0) return;
 
-  // Locate the active Grocery List widget on the Panorama
-  const grocListEl = document.querySelector('[id^="grocList_"]');
-  const grocSlotEl = grocListEl ? grocListEl.closest(".metro-slot") : null;
+  // Locate the receiver widget slot without coupling to groceries.js internal DOM IDs
+  let grocSlotEl = null;
+  for (const sid of receiverSlotIds) {
+    const candidate = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(sid)}"]`);
+    if (candidate) {
+      grocSlotEl = candidate;
+      break;
+    }
+  }
+  if (!grocSlotEl) {
+    grocSlotEl = document.querySelector('.metro-slot[data-extension-id="groceries"]');
+  }
   if (!grocSlotEl) return;
 
+  const grocListEl = grocSlotEl.querySelector(".metro-list") || grocSlotEl.querySelector(".slot-body");
   const targetRect = (grocListEl || grocSlotEl).getBoundingClientRect();
   const startX = sourceRect.left + sourceRect.width / 2;
   const startY = sourceRect.top + sourceRect.height / 2;
@@ -127,18 +139,18 @@ function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList, sourceRe
   });
 
   const hasGroceryReceiver = ctx.canHandle("groceries:add-items");
-  const addedCount = hasGroceryReceiver
+  const dispatchInfo = hasGroceryReceiver
     ? dispatchIngredients(ctx, mealName, finalIngredients)
-    : 0;
+    : { added: 0, slotIds: [] };
 
   saveState(
     hasGroceryReceiver && finalIngredients.length > 0
-      ? `Added "${mealName}" + ${addedCount} linked grocery items`
+      ? `Added "${mealName}" + ${dispatchInfo.added} linked grocery items`
       : `Added "${mealName}" to meal plan`
   );
 
   if (hasGroceryReceiver && finalIngredients.length > 0 && sourceRect) {
-    animateIngredientsToGroceries(sourceRect, finalIngredients);
+    animateIngredientsToGroceries(sourceRect, finalIngredients, dispatchInfo.slotIds);
   }
 }
 
@@ -235,6 +247,8 @@ export default {
 
   renderAddForm(ctx) {
     const { slot, appState, closeDrawer, saveState, escapeHtml, canHandle } = ctx;
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
     const hasGroceryReceiver = canHandle("groceries:add-items");
     const addTitle = hasGroceryReceiver
       ? "Add meal to plan & send ingredients to grocery list"
@@ -245,22 +259,22 @@ export default {
       "display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;";
     formWrap.innerHTML = `
       <div class="quick-form" style="margin-bottom:8px; align-items:center;">
-        <input class="metro-input" id="mealNameInput_${slot.id}" placeholder="search catalog or enter new meal..." autocomplete="off" />
-        <button class="catalog-icon-btn accent" style="width:38px; height:38px;" id="btnQuickAddMeal_${slot.id}" title="${addTitle}">+</button>
+        <input class="metro-input" id="mealNameInput_${sid}" placeholder="search catalog or enter new meal..." autocomplete="off" />
+        <button class="catalog-icon-btn accent" style="width:38px; height:38px;" id="btnQuickAddMeal_${sid}" title="${addTitle}">+</button>
       </div>
       <div class="quick-form" style="margin-bottom:0;">
-        <input class="metro-input" id="mealIngInput_${slot.id}" placeholder="linked ingredients (comma-separated)..." autocomplete="off" />
+        <input class="metro-input" id="mealIngInput_${sid}" placeholder="linked ingredients (comma-separated)..." autocomplete="off" />
       </div>
       <div class="catalog-drawer-header">
-        catalog (<span id="catalogCount_${slot.id}">0</span>)
+        catalog (<span id="catalogCount_${sid}">0</span>)
       </div>
-      <div class="metro-list catalog-drawer-list" id="catalogDrawerList_${slot.id}" data-scroll-pane="meals-catalog-${slot.id}"></div>
+      <div class="metro-list catalog-drawer-list" id="catalogDrawerList_${sid}" data-scroll-pane="meals-catalog-${sid}"></div>
     `;
 
-    const nameInput = formWrap.querySelector(`#mealNameInput_${slot.id}`);
-    const ingInput = formWrap.querySelector(`#mealIngInput_${slot.id}`);
-    const countSpan = formWrap.querySelector(`#catalogCount_${slot.id}`);
-    const catalogListEl = formWrap.querySelector(`#catalogDrawerList_${slot.id}`);
+    const nameInput = formWrap.querySelector(`#mealNameInput_${selId}`);
+    const ingInput = formWrap.querySelector(`#mealIngInput_${selId}`);
+    const countSpan = formWrap.querySelector(`#catalogCount_${selId}`);
+    const catalogListEl = formWrap.querySelector(`#catalogDrawerList_${selId}`);
     let editingCatalogId = null;
 
     const renderCatalogRows = () => {
@@ -307,14 +321,14 @@ export default {
             <input class="metro-input" data-edit="name" value="${escapeHtml(catMeal.name)}" placeholder="meal name..." />
             <input class="metro-input" data-edit="ings" value="${escapeHtml(catIngs.join(", "))}" placeholder="linked ingredients (comma-separated)..." />
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-              <button class="metro-btn subtle" style="border-color:#A20025; color:#FF6B8B; padding:4px 10px; font-size:12px;" data-action="delete-catalog">
+              <button class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete-catalog">
                 delete recipe
               </button>
               <div style="display:flex; gap:6px;">
                 <button class="metro-btn subtle" style="padding:4px 10px; font-size:12px;" data-action="cancel-edit">
                   cancel
                 </button>
-                <button class="metro-btn accent" style="--accent:#A20025; padding:4px 12px; font-size:12px;" data-action="save-edit">
+                <button class="metro-btn accent" style="--accent:#A20025; --accent-fg:#FFFFFF; padding:4px 12px; font-size:12px;" data-action="save-edit">
                   save
                 </button>
               </div>
@@ -411,7 +425,7 @@ export default {
       renderCatalogRows();
     });
 
-    const quickAddBtn = formWrap.querySelector(`#btnQuickAddMeal_${slot.id}`);
+    const quickAddBtn = formWrap.querySelector(`#btnQuickAddMeal_${selId}`);
     const handleAddMeal = () => {
       const rawName = nameInput.value.trim();
       if (!rawName) return;
@@ -428,9 +442,17 @@ export default {
     quickAddBtn.addEventListener("click", handleAddMeal);
     nameInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleAddMeal();
+      if (e.key === "Escape") {
+        closeDrawer();
+        ctx.renderAll();
+      }
     });
     ingInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleAddMeal();
+      if (e.key === "Escape") {
+        closeDrawer();
+        ctx.renderAll();
+      }
     });
 
     renderCatalogRows();

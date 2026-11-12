@@ -20,6 +20,8 @@
   --border-strong: #FFFFFF;
   --accent: #00ABA9; /* Default Metro Teal */
   --accent-fg: #FFFFFF;
+  --danger-text: #FF6B8B;
+  --note-accent-text: #B57CFF;
   --font-metro: "Segoe UI", "Open Sans", "Helvetica Neue", -apple-system, sans-serif;
   --col-width: 400px;
   --col-gap: 32px;
@@ -36,6 +38,8 @@
   --text-muted: #888888;
   --border-color: #CCCCCC;
   --border-strong: #000000;
+  --danger-text: #A20025;
+  --note-accent-text: #6A00FF;
 }
 
 * {
@@ -46,6 +50,14 @@
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 html, body {
@@ -78,6 +90,8 @@ html, body {
   display: flex;
   align-items: baseline;
   gap: 28px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .panorama-title {
@@ -87,6 +101,9 @@ html, body {
   letter-spacing: -0.03em;
   text-transform: lowercase;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panorama-subtitle {
@@ -226,7 +243,7 @@ html, body {
 .metro-circle-btn:hover {
   background: var(--accent);
   border-color: var(--accent);
-  color: #FFFFFF;
+  color: var(--accent-fg, #FFFFFF);
 }
 
 .metro-circle-btn:active {
@@ -382,6 +399,7 @@ html, body {
   align-items: baseline;
   gap: 10px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .slot-title {
@@ -391,6 +409,9 @@ html, body {
   text-transform: lowercase;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .slot-badge {
@@ -400,13 +421,14 @@ html, body {
   letter-spacing: 0.06em;
   padding: 2px 6px;
   background: var(--slot-accent, var(--accent));
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, var(--accent-fg, #FFFFFF));
 }
 
 .slot-controls {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .metro-ellipsis-btn {
@@ -425,6 +447,18 @@ html, body {
 .metro-ellipsis-btn.global-ellipsis {
   font-size: 24px;
   padding: 0 0 0 4px;
+}
+
+.metro-ellipsis-btn.flyout-close-btn {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  letter-spacing: 0;
+  font-size: 20px;
+  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .metro-ellipsis-btn:hover,
@@ -542,7 +576,7 @@ html, body {
 .appbar-cmd.active .appbar-cmd-circle {
   background: var(--slot-accent, var(--accent));
   border-color: var(--slot-accent, var(--accent));
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, var(--accent-fg, #FFFFFF));
 }
 
 .appbar-cmd:active .appbar-cmd-circle {
@@ -574,7 +608,12 @@ html, body {
   border: 1px solid transparent;
   color: var(--text-secondary);
   font-size: 13px;
-  padding: 3px 7px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   text-transform: lowercase;
   font-family: var(--font-metro);
@@ -629,6 +668,24 @@ html, body {
 .cal-chip.hidden-cal {
   opacity: 0.35;
   text-decoration: line-through;
+}
+
+.chip-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 3px 6px;
+  margin-left: 2px;
+  opacity: 0.7;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip-remove-btn:hover {
+  opacity: 1;
+  color: var(--danger-text, #FF6B8B);
 }
 
 .hour-timeline {
@@ -916,7 +973,7 @@ html, body {
 .metro-checkbox.checked {
   background: var(--slot-accent, var(--accent));
   border-color: var(--slot-accent, var(--accent));
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, var(--accent-fg, #FFFFFF));
 }
 
 .item-text-wrap {
@@ -1030,7 +1087,7 @@ html, body {
 .catalog-icon-btn.accent {
   background: #A20025;
   border-color: #A20025;
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, #FFFFFF);
   font-size: 19px;
   font-weight: 400;
 }
@@ -1149,7 +1206,7 @@ html, body {
 .weekday-chip.selected {
   background: var(--slot-accent, #FA6800);
   border-color: var(--slot-accent, #FA6800);
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, var(--accent-fg, #FFFFFF));
 }
 
 @keyframes metroPivotSlideIn {
@@ -1383,7 +1440,7 @@ html, body {
 .wireframe-OnTile-btn:not(:disabled):hover .wireframe-circle {
   background: var(--slot-accent, var(--accent));
   border-color: var(--slot-accent, var(--accent));
-  color: #FFFFFF;
+  color: var(--slot-accent-fg, var(--accent-fg, #FFFFFF));
 }
 
 .wireframe-OnTile-btn.danger:not(:disabled):hover .wireframe-circle {
@@ -1527,7 +1584,7 @@ html, body {
 }
 
 .color-swatch.selected {
-  border-color: #FFFFFF;
+  border-color: var(--border-strong);
   transform: scale(1.1);
 }
 

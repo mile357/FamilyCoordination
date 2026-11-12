@@ -162,7 +162,13 @@ function normalizeChoresList(chores, todayStr) {
   let mutated = false;
   const cutoffIso = getDayInfo(30).iso;
 
-  chores.forEach((c) => {
+  for (let i = chores.length - 1; i >= 0; i--) {
+    const c = chores[i];
+    if (!c || typeof c !== "object") {
+      chores.splice(i, 1);
+      mutated = true;
+      continue;
+    }
     if (typeof c.repeating !== "boolean") {
       // Migrate legacy default chores: chore-4 becomes a sample one-off, others become daily checklist items
       c.repeating = c.id !== "chore-4";
@@ -214,8 +220,17 @@ function normalizeChoresList(chores, todayStr) {
         c.completedDate = null;
         mutated = true;
       }
+      // Prune completed one-off chores older than 30 days
+      if (
+        c.done &&
+        typeof c.completedDate === "string" &&
+        c.completedDate < cutoffIso
+      ) {
+        chores.splice(i, 1);
+        mutated = true;
+      }
     }
-  });
+  }
   return mutated;
 }
 
@@ -257,7 +272,12 @@ function ensureAttractModeWatcher() {
 
     activeSlotRenderers.forEach((rerenderSlot, slotId) => {
       const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(slotId)}"]`);
-      if (!slotEl || slotEl.classList.contains("arrange-wireframe")) return;
+      if (!slotEl) {
+        activeSlotRenderers.delete(slotId);
+        slotUiMap.delete(slotId);
+        return;
+      }
+      if (slotEl.classList.contains("arrange-wireframe")) return;
       const drawerEl = slotEl.querySelector(".slot-command-drawer.open");
       if (drawerEl) return;
 
@@ -336,8 +356,10 @@ export default {
   },
 
   renderAddForm(ctx) {
-    const { slot, appState, closeDrawer, saveState } = ctx;
+    const { slot, appState, closeDrawer, saveState, escapeHtml } = ctx;
     const ui = getSlotUi(slot.id);
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
     let isRepeating = ui.pivot !== "one-off";
     let selectedDays = new Set(ALL_DAYS);
 
@@ -345,19 +367,19 @@ export default {
     wrap.style.cssText = "display:flex; flex-direction:column; gap:8px;";
     wrap.innerHTML = `
       <div class="quick-form" style="margin-bottom:0; align-items:center;">
-        <input class="metro-input" id="choreInput_${slot.id}" placeholder="new chore..." autocomplete="off" />
-        <button class="catalog-icon-btn accent" style="width:38px; height:38px; background:var(--slot-accent, #FA6800); border-color:var(--slot-accent, #FA6800);" id="btnAddChore_${slot.id}" title="Add chore">+</button>
+        <input class="metro-input" id="choreInput_${sid}" placeholder="new chore..." autocomplete="off" />
+        <button class="catalog-icon-btn accent" style="width:38px; height:38px; background:var(--slot-accent, #FA6800); border-color:var(--slot-accent, #FA6800);" id="btnAddChore_${sid}" title="Add chore">+</button>
       </div>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
         <span style="font-size:13px; color:var(--text-secondary); text-transform:lowercase;">repeating checklist item</span>
-        <div class="metro-toggle ${isRepeating ? "on" : ""}" id="choreRepeatToggle_${slot.id}" role="switch" aria-checked="${isRepeating}" tabindex="0"></div>
+        <div class="metro-toggle ${isRepeating ? "on" : ""}" id="choreRepeatToggle_${sid}" role="switch" aria-checked="${isRepeating}" tabindex="0"></div>
       </div>
-      <div class="weekday-picker" id="choreDaysPicker_${slot.id}" style="display:${isRepeating ? "flex" : "none"};"></div>
+      <div class="weekday-picker" id="choreDaysPicker_${sid}" style="display:${isRepeating ? "flex" : "none"};"></div>
     `;
 
-    const input = wrap.querySelector(`#choreInput_${slot.id}`);
-    const repeatToggle = wrap.querySelector(`#choreRepeatToggle_${slot.id}`);
-    const daysPicker = wrap.querySelector(`#choreDaysPicker_${slot.id}`);
+    const input = wrap.querySelector(`#choreInput_${selId}`);
+    const repeatToggle = wrap.querySelector(`#choreRepeatToggle_${selId}`);
+    const daysPicker = wrap.querySelector(`#choreDaysPicker_${selId}`);
 
     const renderDayChips = () => {
       daysPicker.style.display = isRepeating ? "flex" : "none";
@@ -400,6 +422,7 @@ export default {
       const title = input.value.trim();
       if (!title) return;
       if (!Array.isArray(appState.chores)) appState.chores = [];
+      const todayStr = getTodayIsoDate();
 
       const newChore = isRepeating
         ? {
@@ -407,6 +430,7 @@ export default {
             title,
             repeating: true,
             days: [...selectedDays].sort((a, b) => a - b),
+            createdAt: todayStr,
             completedDate: null,
             completedDates: [],
           }
@@ -414,6 +438,7 @@ export default {
             id: "chore-" + Date.now(),
             title,
             repeating: false,
+            createdAt: todayStr,
             done: false,
             completedDate: null,
           };
@@ -424,9 +449,13 @@ export default {
       saveState(`Added "${title}" to ${ui.pivot}`);
     };
 
-    wrap.querySelector(`#btnAddChore_${slot.id}`).addEventListener("click", addChore);
+    wrap.querySelector(`#btnAddChore_${selId}`).addEventListener("click", addChore);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") addChore();
+      if (e.key === "Escape") {
+        closeDrawer();
+        ctx.renderAll();
+      }
     });
 
     setTimeout(() => input.focus(), 20);
@@ -437,6 +466,8 @@ export default {
     ensureAttractModeWatcher();
     const { slot, appState, saveState, renderSlotOnly, escapeHtml } = ctx;
     activeSlotRenderers.set(slot.id, renderSlotOnly);
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
 
     if (!Array.isArray(appState.chores)) appState.chores = [];
     const todayStr = getTodayIsoDate();
@@ -455,11 +486,12 @@ export default {
       (c) => (c.days || ALL_DAYS).includes(todayDayIdx) && !isChoreDoneToday(c, todayStr)
     ).length;
     const oneOffRemaining = oneOffChores.filter((c) => !c.done).length;
+    const completedOneOffCount = oneOffChores.length - oneOffRemaining;
 
     const wrap = document.createElement("div");
     wrap.className = "chore-slot-wrap";
     wrap.innerHTML = `
-      <div class="sub-pivots" style="margin-bottom:10px;">
+      <div class="sub-pivots" style="margin-bottom:10px; align-items:baseline;">
         <button type="button" class="pivot-tab ${ui.pivot === "checklist" ? "active" : ""}" data-pivot="checklist">
           checklist (${dueTodayRemaining})
         </button>
@@ -469,8 +501,13 @@ export default {
         <button type="button" class="pivot-tab ${ui.pivot === "history" ? "active" : ""}" data-pivot="history">
           history
         </button>
+        ${
+          ui.pivot === "one-off" && completedOneOffCount > 0
+            ? `<button type="button" class="slot-icon-btn" id="btnClearDoneOneOff_${sid}" style="margin-left:auto; font-size:12px;">clear done (${completedOneOffCount})</button>`
+            : ""
+        }
       </div>
-      <div class="metro-list chore-scroll-list ${shouldAnimate ? "chore-pivot-animate" : ""}" id="choreList_${slot.id}" data-scroll-pane="chores-${slot.id}"></div>
+      <div class="metro-list chore-scroll-list ${shouldAnimate ? "chore-pivot-animate" : ""}" id="choreList_${sid}" data-scroll-pane="chores-${sid}"></div>
     `;
 
     wrap.querySelectorAll(".pivot-tab").forEach((btn) => {
@@ -480,7 +517,15 @@ export default {
       });
     });
 
-    const listEl = wrap.querySelector(`#choreList_${slot.id}`);
+    const clearDoneBtn = wrap.querySelector(`#btnClearDoneOneOff_${selId}`);
+    if (clearDoneBtn) {
+      clearDoneBtn.addEventListener("click", () => {
+        appState.chores = (appState.chores || []).filter((c) => c.repeating || !c.done);
+        saveState("Cleared completed one-off tasks");
+      });
+    }
+
+    const listEl = wrap.querySelector(`#choreList_${selId}`);
 
     // ========================================================================
     // 7-DAY HISTORY PIVOT (READ-ONLY LOG OF DONE ITEMS & UNDONE DAILY CHORES)
@@ -490,11 +535,13 @@ export default {
         const { iso, dayIdx, dayName, dateLabel } = getDayInfo(daysAgo);
 
         const doneItems = allChores.filter((c) => isChoreDoneOnDate(c, iso));
-        const scheduledRepeating = repeatingChores.filter((c) =>
-          (c.days || ALL_DAYS).includes(dayIdx)
+        const scheduledRepeating = repeatingChores.filter(
+          (c) =>
+            (c.days || ALL_DAYS).includes(dayIdx) &&
+            (!c.createdAt || iso >= c.createdAt || isChoreDoneOnDate(c, iso))
         );
         const undoneRepeating = scheduledRepeating.filter(
-          (c) => !isChoreDoneOnDate(c, iso)
+          (c) => !isChoreDoneOnDate(c, iso) && (!c.createdAt || iso >= c.createdAt)
         );
 
         const doneScheduledCount = scheduledRepeating.length - undoneRepeating.length;
@@ -627,7 +674,7 @@ export default {
           </div>
           <div class="weekday-picker" data-edit="days-picker" style="display:${editRepeating ? "flex" : "none"};"></div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px;">
-            <button type="button" class="metro-btn subtle" style="border-color:#A20025; color:#FF6B8B; padding:4px 10px; font-size:12px;" data-action="delete">
+            <button type="button" class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete">
               delete
             </button>
             <div style="display:flex; gap:6px;">
@@ -665,11 +712,19 @@ export default {
           });
         };
 
-        repToggle.addEventListener("click", () => {
+        const toggleEditRepeating = () => {
           editRepeating = !editRepeating;
           repToggle.classList.toggle("on", editRepeating);
           repToggle.setAttribute("aria-checked", String(editRepeating));
           renderEditDays();
+        };
+
+        repToggle.addEventListener("click", toggleEditRepeating);
+        repToggle.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleEditRepeating();
+          }
         });
 
         renderEditDays();
@@ -682,6 +737,7 @@ export default {
           c.repeating = editRepeating;
           if (editRepeating) {
             c.days = [...editDays].sort((a, b) => a - b);
+            c.createdAt = c.createdAt || todayStr;
             if (!Array.isArray(c.completedDates)) {
               c.completedDates = wasDoneToday ? [c.completedDate || todayStr] : [];
             }

@@ -183,6 +183,28 @@ function buildInitialCalendarState() {
   };
 }
 
+const calLastAutoScrollKey = new Map(); // slotId -> "DateString-Hour"
+
+function refreshAgedDemoEventsIfNeeded(appState) {
+  if (!appState || !Array.isArray(appState.events) || appState.events.length === 0) return;
+  const demoEvents = appState.events.filter((ev) => ev && /^ev-\d+$/.test(String(ev.id)));
+  if (demoEvents.length === 0) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const ev1 = demoEvents.find((ev) => ev.id === "ev-1") || demoEvents[0];
+  const ev1Start = new Date(ev1.start);
+  ev1Start.setHours(0, 0, 0, 0);
+
+  if (isNaN(ev1Start.getTime()) || ev1Start.getTime() < todayMs) {
+    const freshDemos = buildInitialCalendarState().events;
+    const nonDemoEvents = appState.events.filter((ev) => ev && !/^ev-\d+$/.test(String(ev.id)));
+    appState.events = [...freshDemos, ...nonDemoEvents];
+  }
+}
+
 export default {
   id: "calendar",
   order: 10,
@@ -199,7 +221,12 @@ export default {
   defaultState: buildInitialCalendarState,
 
   renderAddForm(ctx) {
-    const { slot, appState, saveState, renderAll, showToast, escapeHtml } = ctx;
+    const { slot, appState, saveState, renderAll, showToast, escapeHtml, sanitizeColor } = ctx;
+    const safeColor = (val, fallback) =>
+      typeof sanitizeColor === "function" ? sanitizeColor(val, fallback) : val || fallback;
+    const sid = escapeHtml(slot.id);
+    const selId = CSS.escape(slot.id);
+
     const wrap = document.createElement("div");
     wrap.style.display = "flex";
     wrap.style.flexDirection = "column";
@@ -208,48 +235,65 @@ export default {
     wrap.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-          <div class="calendar-filter-strip" style="padding:0; flex:1;" id="calStrip_${slot.id}"></div>
-          <button class="slot-icon-btn" id="btnInlineSyncCal_${slot.id}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
+          <div class="calendar-filter-strip" style="padding:0; flex:1;" id="calStrip_${sid}"></div>
+          <button class="slot-icon-btn" id="btnInlineSyncCal_${sid}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
         </div>
 
         <div class="quick-form" style="margin-bottom:0; width:100%;">
-          <input class="metro-input" id="newCalName_${slot.id}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:220px;" />
-          <select class="metro-input" id="newCalProvider_${slot.id}" style="max-width:130px;">
+          <input class="metro-input" id="newCalName_${sid}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:220px;" />
+          <select class="metro-input" id="newCalProvider_${sid}" style="max-width:130px;">
             <option value="google">Google</option>
             <option value="microsoft">Microsoft</option>
           </select>
-          <input class="metro-input" id="newCalUrl_${slot.id}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
-          <button class="metro-btn accent" id="btnConnectCal_${slot.id}">+ connect</button>
+          <input class="metro-input" id="newCalUrl_${sid}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
+          <button class="metro-btn accent" id="btnConnectCal_${sid}">+ connect</button>
         </div>
       </div>
     `;
 
-    const strip = wrap.querySelector(`#calStrip_${slot.id}`);
+    const strip = wrap.querySelector(`#calStrip_${selId}`);
     (appState.calendars || []).forEach((cal) => {
       const chip = document.createElement("div");
       chip.className = `cal-chip ${cal.visible ? "" : "hidden-cal"}`;
-      chip.style.setProperty("--cal-color", cal.color);
+      chip.style.setProperty("--cal-color", safeColor(cal.color, "#00ABA9"));
       chip.innerHTML = `
-        <span class="chip-toggle-area" style="display:inline-flex; align-items:center; gap:6px;">
+        <span class="chip-toggle-area" role="button" tabindex="0" style="display:inline-flex; align-items:center; gap:6px;">
           <strong>${cal.provider === "google" ? "G" : "M"}</strong>
           <span>${escapeHtml(cal.name)}</span>
         </span>
-        <span class="chip-remove-btn" title="Disconnect feed" style="margin-left:6px; opacity:0.6; font-size:11px;">✕</span>
+        <span class="chip-remove-btn" role="button" tabindex="0" title="Disconnect feed">✕</span>
       `;
-      chip.querySelector(".chip-toggle-area").addEventListener("click", () => {
+      const toggleArea = chip.querySelector(".chip-toggle-area");
+      const toggleCal = () => {
         cal.visible = !cal.visible;
         saveState(`${cal.name} ${cal.visible ? "shown" : "hidden"}`);
+      };
+      toggleArea.addEventListener("click", toggleCal);
+      toggleArea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleCal();
+        }
       });
-      chip.querySelector(".chip-remove-btn").addEventListener("click", (e) => {
+
+      const removeBtn = chip.querySelector(".chip-remove-btn");
+      const removeCal = (e) => {
         e.stopPropagation();
         appState.calendars = appState.calendars.filter((c) => c.id !== cal.id);
         appState.events = appState.events.filter((ev) => ev.calendarId !== cal.id);
         saveState(`Disconnected ${cal.name}`);
+      };
+      removeBtn.addEventListener("click", removeCal);
+      removeBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          removeCal(e);
+        }
       });
       strip.appendChild(chip);
     });
 
-    wrap.querySelector(`#btnInlineSyncCal_${slot.id}`).addEventListener("click", async () => {
+    wrap.querySelector(`#btnInlineSyncCal_${selId}`).addEventListener("click", async () => {
       showToast("Syncing read-only calendar feeds...");
       try {
         const res = await fetch("/api/sync-calendars", { method: "POST" });
@@ -257,17 +301,27 @@ export default {
         if (data.ok) {
           ctx.replaceAppState(data.state);
           renderAll();
-          showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
+          if (data.warnings && data.warnings.length > 0) {
+            showToast(`Synced ${data.syncedFeeds} feed(s) (${data.warnings[0]})`);
+          } else {
+            showToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
+          }
+        } else {
+          showToast(data.error || "Could not sync calendar feeds");
         }
       } catch (e) {
         showToast("Sync complete");
       }
     });
 
-    wrap.querySelector(`#btnConnectCal_${slot.id}`).addEventListener("click", async () => {
-      const name = wrap.querySelector(`#newCalName_${slot.id}`).value.trim();
-      const provider = wrap.querySelector(`#newCalProvider_${slot.id}`).value;
-      const url = wrap.querySelector(`#newCalUrl_${slot.id}`).value.trim();
+    const connectBtn = wrap.querySelector(`#btnConnectCal_${selId}`);
+    const nameInput = wrap.querySelector(`#newCalName_${selId}`);
+    const urlInput = wrap.querySelector(`#newCalUrl_${selId}`);
+
+    const handleConnectCal = async () => {
+      const name = nameInput.value.trim();
+      const provider = wrap.querySelector(`#newCalProvider_${selId}`).value;
+      const url = urlInput.value.trim();
       if (!name || !url) {
         showToast("Please enter both a label and a read-only .ics URL");
         return;
@@ -296,25 +350,37 @@ export default {
             ctx.replaceAppState(data.state);
             renderAll();
             showToast(`Synced events from ${name}`);
+          } else if (data.error) {
+            showToast(data.error);
           }
         } catch (e) {}
       }
+    };
+
+    connectBtn.addEventListener("click", handleConnectCal);
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleConnectCal();
+    });
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleConnectCal();
     });
 
     return wrap;
   },
 
   renderSlot(ctx) {
-    const { appState, escapeHtml, formatTimeShort, sanitizeColor } = ctx;
+    const { slot, appState, escapeHtml, formatTimeShort, sanitizeColor } = ctx;
     const safeColor = (val, fallback) =>
       typeof sanitizeColor === "function" ? sanitizeColor(val, fallback) : val || fallback;
+
+    refreshAgedDemoEventsIfNeeded(appState);
 
     const visibleCalIds = new Set(
       (appState.calendars || []).filter((c) => c.visible).map((c) => c.id)
     );
     const calMap = new Map((appState.calendars || []).map((c) => [c.id, c]));
 
-    // Pre-bucket all visible events by local date key ("YYYY-MM-DD") in a single pass
+    // Pre-bucket all visible events by local date key ("YYYY-M-D"), spanning multi-day & overnight events
     const dateKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     const eventsByDate = new Map();
 
@@ -322,12 +388,34 @@ export default {
       if (!visibleCalIds.has(ev.calendarId)) continue;
       const startDt = new Date(ev.start);
       if (isNaN(startDt.getTime())) continue;
-      const endDt = new Date(ev.end);
-      const key = dateKey(startDt);
-      if (!eventsByDate.has(key)) {
-        eventsByDate.set(key, []);
+      const rawEndDt = new Date(ev.end);
+      const endDt =
+        !isNaN(rawEndDt.getTime()) && rawEndDt.getTime() > startDt.getTime()
+          ? rawEndDt
+          : new Date(startDt.getTime() + (ev.allDay ? 24 : 1) * 60 * 60 * 1000);
+
+      const curDay = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate());
+      const lastDay = new Date(endDt.getFullYear(), endDt.getMonth(), endDt.getDate());
+      // RFC 5545 exclusive midnight boundary on subsequent days
+      if (
+        lastDay.getTime() > curDay.getTime() &&
+        endDt.getHours() === 0 &&
+        endDt.getMinutes() === 0 &&
+        endDt.getSeconds() === 0
+      ) {
+        lastDay.setDate(lastDay.getDate() - 1);
       }
-      eventsByDate.get(key).push({ ev, startDt, endDt });
+
+      let daysSpanned = 0;
+      while (curDay.getTime() <= lastDay.getTime() && daysSpanned < 366) {
+        const key = dateKey(curDay);
+        if (!eventsByDate.has(key)) {
+          eventsByDate.set(key, []);
+        }
+        eventsByDate.get(key).push({ ev, startDt, endDt });
+        curDay.setDate(curDay.getDate() + 1);
+        daysSpanned++;
+      }
     }
 
     for (const bucket of eventsByDate.values()) {
@@ -364,6 +452,7 @@ export default {
     // LEFT PANE: Today's Hour-by-Hour Timeline
     const leftPane = document.createElement("div");
     leftPane.className = "double-pane";
+    leftPane.dataset.scrollPane = `cal-today-${slot.id}`;
     const timeline = document.createElement("div");
     timeline.className = "hour-timeline";
 
@@ -444,8 +533,8 @@ export default {
     }
     finalizeCluster(cluster);
 
-    let firstHour = 6;
-    let lastHour = 22;
+    let firstHour = Math.min(6, currentHour);
+    let lastHour = Math.max(22, currentHour);
     for (const item of timedItems) {
       firstHour = Math.min(firstHour, Math.floor(item.startMin / 60));
       lastHour = Math.max(lastHour, Math.min(23, Math.ceil(item.endMin / 60) - 1));
@@ -541,9 +630,23 @@ export default {
     timeline.appendChild(gridStage);
     leftPane.appendChild(timeline);
 
+    // Auto-scroll Today timeline to currentHour on initial render and hour rollovers
+    const hourScrollKey = `${now.toDateString()}-${currentHour}`;
+    const targetScrollTop = Math.max(0, (currentHour - firstHour - 1) * HOUR_HEIGHT);
+    if (calLastAutoScrollKey.get(slot.id) !== hourScrollKey) {
+      calLastAutoScrollKey.set(slot.id, hourScrollKey);
+      leftPane.scrollTop = targetScrollTop;
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => {
+          leftPane.scrollTop = targetScrollTop;
+        });
+      }
+    }
+
     // RIGHT PANE: Next 7 Days Agenda
     const rightPane = document.createElement("div");
     rightPane.className = "double-pane";
+    rightPane.dataset.scrollPane = `cal-agenda-${slot.id}`;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 

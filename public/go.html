@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>grocery list — family hub</title>
-  <link rel="stylesheet" href="/styles.css?v=30" />
+  <link rel="stylesheet" href="/styles.css?v=37" />
   <style>
     body {
       overflow-y: auto;
@@ -55,7 +55,7 @@
 <body>
   <header class="pocket-header">
     <h1 class="pocket-title">grocery list</h1>
-    <button class="metro-btn accent" style="--accent:#60A917; padding:6px 12px; font-size:13px;" id="btnCopyNotes">
+    <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF; padding:6px 12px; font-size:13px;" id="btnCopyNotes">
       copy for notes
     </button>
   </header>
@@ -67,7 +67,7 @@
 
   <div class="quick-form" style="margin-bottom:14px;">
     <input class="metro-input" id="mobileGrocInput" placeholder="add grocery item..." autocomplete="off" />
-    <button class="metro-btn accent" style="--accent:#60A917" id="btnMobileAdd">add</button>
+    <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF" id="btnMobileAdd">add</button>
     <button class="metro-btn subtle" id="btnMobileClear" style="display:none;">clear</button>
   </div>
 
@@ -78,8 +78,19 @@
   <script>
     const CACHE_KEY = "metro_pocket_groceries_v1";
     const DIRTY_KEY = "metro_pocket_dirty_v1";
+    const THEME_KEY = "metro_pocket_theme_v1";
     let groceries = [];
     let isOnlineWithHub = false;
+    let isSyncing = false;
+    let syncPending = false;
+
+    function applyPocketTheme(theme) {
+      const clean = theme === "light" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", clean);
+      try {
+        localStorage.setItem(THEME_KEY, clean);
+      } catch (e) {}
+    }
 
     function showMobileToast(msg) {
       const el = document.getElementById("mobileToast");
@@ -94,11 +105,16 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function loadInitialSeedFromHashOrCache() {
       try {
+        const cachedTheme = localStorage.getItem(THEME_KEY);
+        if (cachedTheme) {
+          document.documentElement.setAttribute("data-theme", cachedTheme);
+        }
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
           groceries = JSON.parse(cached) || [];
@@ -138,21 +154,58 @@
     }
 
     async function syncWithHub() {
+      if (isSyncing) {
+        syncPending = true;
+        return;
+      }
+      isSyncing = true;
       try {
         const res = await fetch("/api/state", { cache: "no-store" });
         if (!res.ok) throw new Error("Hub unreachable");
         const state = await res.json();
 
+        if (state && state.settings && state.settings.theme) {
+          applyPocketTheme(state.settings.theme);
+        }
+
         const hasDirtyLocal = localStorage.getItem(DIRTY_KEY) === "1";
-        if (hasDirtyLocal && groceries.length > 0) {
-          state.groceries = groceries;
-          const postRes = await fetch("/api/state", {
+        if (hasDirtyLocal) {
+          const snapshotJson = JSON.stringify(groceries);
+          const groceriesToPush = JSON.parse(snapshotJson);
+          state.groceries = groceriesToPush;
+
+          let postRes = await fetch("/api/state", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Expected-Updated-At": state._updatedAt || "",
+            },
             body: JSON.stringify(state),
           });
+
+          if (postRes.status === 409) {
+            const conflictData = await postRes.json();
+            const latestState = (conflictData && conflictData.state) || state;
+            if (latestState && latestState.settings && latestState.settings.theme) {
+              applyPocketTheme(latestState.settings.theme);
+            }
+            latestState.groceries = groceriesToPush;
+            postRes = await fetch("/api/state", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Expected-Updated-At": latestState._updatedAt || "",
+              },
+              body: JSON.stringify(latestState),
+            });
+          }
+
           if (postRes.ok) {
-            localStorage.removeItem(DIRTY_KEY);
+            if (JSON.stringify(groceries) === snapshotJson) {
+              localStorage.removeItem(DIRTY_KEY);
+            } else {
+              syncPending = true;
+            }
           }
         } else if (Array.isArray(state.groceries)) {
           groceries = state.groceries;
@@ -167,6 +220,12 @@
           "offline store mode — check-offs saved on phone & sync when back on home wi-fi"
         );
         renderList();
+      } finally {
+        isSyncing = false;
+        if (syncPending) {
+          syncPending = false;
+          syncWithHub();
+        }
       }
     }
 
@@ -191,7 +250,7 @@
 
       const sorted = [...groceries].sort((a, b) => Number(a.checked) - Number(b.checked));
       if (sorted.length === 0) {
-        listEl.innerHTML = `<div style="padding:18px; background:var(--bg-tile); color:var(--text-secondary);">grocery list is empty</div>`;
+        listEl.innerHTML = `<div class="agenda-empty" style="padding:18px; background:var(--bg-tile);">grocery list is empty</div>`;
         return;
       }
 
@@ -199,6 +258,7 @@
         const row = document.createElement("div");
         row.className = "metro-list-item";
         row.style.setProperty("--slot-accent", "#60A917");
+        row.style.setProperty("--slot-accent-fg", "#FFFFFF");
         row.innerHTML = `
           <div class="check-row" role="checkbox" aria-checked="${Boolean(item.checked)}" tabindex="0">
             <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>
@@ -214,9 +274,17 @@
           <button class="slot-icon-btn" title="Delete">✕</button>
         `;
 
-        row.querySelector(".check-row").addEventListener("click", () => {
+        const checkRow = row.querySelector(".check-row");
+        const toggleItem = () => {
           item.checked = !item.checked;
           pushChangeToHub();
+        };
+        checkRow.addEventListener("click", toggleItem);
+        checkRow.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleItem();
+          }
         });
 
         row.querySelector("button").addEventListener("click", () => {
@@ -233,7 +301,7 @@
       const val = inp.value.trim();
       if (!val) return;
       groceries.unshift({
-        id: "groc-" + Date.now(),
+        id: "groc-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
         name: val,
         checked: false,
         fromMeal: null,
@@ -244,6 +312,10 @@
 
     document.getElementById("mobileGrocInput").addEventListener("keydown", (e) => {
       if (e.key === "Enter") document.getElementById("btnMobileAdd").click();
+      if (e.key === "Escape") {
+        e.target.value = "";
+        e.target.blur();
+      }
     });
 
     document.getElementById("btnMobileClear").addEventListener("click", () => {
