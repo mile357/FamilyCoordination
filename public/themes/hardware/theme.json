@@ -1,0 +1,34 @@
+{
+  "id": "hardware",
+  "name": "Braun / Field Hardware",
+  "description": "Industrial hardware minimalism inspired by Dieter Rams and Teenage Engineering: matte casing, crisp hairlines, and tactile keycaps.",
+  "author": "Family Hub",
+  "order": 7,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#FF5500",
+  "accents": [
+    { "name": "Signal Orange", "hex": "#FF5500" },
+    { "name": "Field Yellow", "hex": "#F5C400" },
+    { "name": "Meter Blue", "hex": "#0055E5" },
+    { "name": "Circuit Green", "hex": "#1B8A4B" },
+    { "name": "Tape Graphite", "hex": "#2B2B29" }
+  ],
+  "extensionAccents": {
+    "calendar": "#0055E5",
+    "meals": "#FF5500",
+    "groceries": "#1B8A4B",
+    "chores": "#C46E00",
+    "notes": "#4A5568",
+    "task-checklist": "#C42B1C"
+  },
+  "metaThemeColor": {
+    "light": "#E6E4DD",
+    "dark": "#161615"
+  },
+  "preview": {
+    "light": { "canvas": "#E6E4DD", "tile": "#F5F4F0", "accent": "#FF5500" },
+    "dark": { "canvas": "#161615", "tile": "#222220", "accent": "#FF6A1A" }
+  }
+}

@@ -76,7 +76,7 @@ export default {
     wrap.innerHTML = `
       <div class="quick-form" style="margin-bottom:0;">
         <input class="metro-input" id="grocInput_${sid}" placeholder="add grocery item..." />
-        <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF" id="btnAddGroc_${sid}">add</button>
+        <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnAddGroc_${sid}">add</button>
         ${
           checkedCount > 0
             ? `<button class="metro-btn subtle" id="btnClearChecked_${sid}">clear (${checkedCount})</button>`
@@ -86,7 +86,7 @@ export default {
       <div class="groc-qr-card">
         <div id="grocQrBox_${sid}"></div>
         <div class="groc-qr-info">
-          <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:#60A917;">
+          <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--slot-accent-text, var(--slot-accent, #60A917));">
             take on phone
           </div>
           <div class="groc-qr-modes">
@@ -223,7 +223,6 @@ export default {
     sorted.forEach((item) => {
       const row = document.createElement("div");
       row.className = "metro-list-item";
-      row.style.setProperty("--slot-accent", "#60A917");
       row.innerHTML = `
         <div class="check-row" role="checkbox" aria-checked="${Boolean(item.checked)}" tabindex="0">
           <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>

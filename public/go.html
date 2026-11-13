@@ -4,7 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>grocery list — family hub</title>
-  <link rel="stylesheet" href="/styles.css?v=37" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="stylesheet" href="/styles.css?v=40" />
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem("hub_active_theme_cache_v1");
+        if (!raw) return;
+        var cached = JSON.parse(raw);
+        if (!cached || typeof cached !== "object") return;
+        if (cached.themeId && /^[a-z0-9][a-z0-9_-]*$/.test(cached.themeId)) {
+          document.documentElement.setAttribute("data-theme-id", cached.themeId);
+        }
+        if (cached.mode === "light" || cached.mode === "dark") {
+          document.documentElement.setAttribute("data-theme", cached.mode);
+        }
+        if (cached.accent && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cached.accent)) {
+          document.documentElement.style.setProperty("--accent", cached.accent);
+        }
+        if (cached.stylesheetUrl && /^\/themes\/[a-zA-Z0-9._\/-]+\.css$/.test(cached.stylesheetUrl)) {
+          var link = document.createElement("link");
+          link.id = "activeThemeStylesheet";
+          link.rel = "stylesheet";
+          link.href = cached.stylesheetUrl + "?v=40";
+          document.head.appendChild(link);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
     body {
       overflow-y: auto;
@@ -20,11 +47,13 @@
       margin-bottom: 6px;
     }
     .pocket-title {
+      font-family: var(--font-display);
       font-size: 38px;
-      font-weight: 200;
-      letter-spacing: -0.02em;
+      font-weight: var(--title-weight, 200);
+      letter-spacing: var(--title-tracking, -0.02em);
       line-height: 1.05;
-      text-transform: lowercase;
+      text-transform: var(--title-transform, lowercase);
+      color: var(--text-primary);
     }
     .pocket-status {
       font-size: 12px;
@@ -37,12 +66,12 @@
     .status-dot {
       width: 8px;
       height: 8px;
-      border-radius: 50% !important;
-      background: #60A917;
+      border-radius: 50%;
+      background: var(--slot-accent, var(--success-color, #60A917));
       display: inline-block;
     }
     .status-dot.offline {
-      background: #F0A30A;
+      background: var(--warning-color, #F0A30A);
     }
     .pocket-actions {
       display: flex;
@@ -55,7 +84,7 @@
 <body>
   <header class="pocket-header">
     <h1 class="pocket-title">grocery list</h1>
-    <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF; padding:6px 12px; font-size:13px;" id="btnCopyNotes">
+    <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:6px 12px; font-size:13px;" id="btnCopyNotes">
       copy for notes
     </button>
   </header>
@@ -67,7 +96,7 @@
 
   <div class="quick-form" style="margin-bottom:14px;">
     <input class="metro-input" id="mobileGrocInput" placeholder="add grocery item..." autocomplete="off" />
-    <button class="metro-btn accent" style="--accent:#60A917; --accent-fg:#FFFFFF" id="btnMobileAdd">add</button>
+    <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnMobileAdd">add</button>
     <button class="metro-btn subtle" id="btnMobileClear" style="display:none;">clear</button>
   </div>
 
@@ -78,17 +107,115 @@
   <script>
     const CACHE_KEY = "metro_pocket_groceries_v1";
     const DIRTY_KEY = "metro_pocket_dirty_v1";
-    const THEME_KEY = "metro_pocket_theme_v1";
+    const THEME_KEY = "hub_active_theme_cache_v1";
+    const LEGACY_THEME_KEY = "metro_pocket_theme_v1";
+    const THEME_ASSET_VERSION = "39";
     let groceries = [];
     let isOnlineWithHub = false;
     let isSyncing = false;
     let syncPending = false;
+    let pocketThemesCache = null;
 
-    function applyPocketTheme(theme) {
-      const clean = theme === "light" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", clean);
+    function sanitizeHexColor(val, fallback) {
+      const s = String(val || "").trim();
+      return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s) ? s : fallback;
+    }
+
+    function getPocketContrastColor(hex) {
+      let clean = sanitizeHexColor(hex, "#60A917").slice(1);
+      if (clean.length === 3) clean = clean.split("").map((c) => c + c).join("");
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      const toLin = (c) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      };
+      const lum = 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+      const whiteContrast = 1.05 / (lum + 0.05);
+      return whiteContrast >= 2.8 && yiq < 155 ? "#FFFFFF" : "#000000";
+    }
+
+    async function ensurePocketThemesLoaded() {
+      if (pocketThemesCache) return pocketThemesCache;
       try {
-        localStorage.setItem(THEME_KEY, clean);
+        const res = await fetch("/api/themes", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.themes)) {
+            pocketThemesCache = data.themes;
+            return pocketThemesCache;
+          }
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    async function applyPocketThemeFromSettings(settings) {
+      const s = settings || {};
+      const themes = await ensurePocketThemesLoaded();
+      const rawId = s.themeId || "metro";
+      const themeDef = themes.find((t) => t.id === rawId) || themes.find((t) => t.id === "metro") || null;
+      const allowedModes = themeDef && Array.isArray(themeDef.modes) && themeDef.modes.length > 0 ? themeDef.modes : ["dark", "light"];
+      const mode = allowedModes.includes(s.theme) ? s.theme : ((themeDef && themeDef.defaultMode) || allowedModes[0]);
+      const accent = sanitizeHexColor(s.accentColor, (themeDef && themeDef.defaultAccent) || "#00ABA9");
+      const slotAccent = sanitizeHexColor(
+        (themeDef && themeDef.extensionAccents && themeDef.extensionAccents.groceries) ||
+          (themeDef && themeDef.id === "metro" ? "#60A917" : accent),
+        "#60A917"
+      );
+      const stylesheetUrl = (themeDef && themeDef.stylesheetUrl) || "";
+      const metaColor = (themeDef && themeDef.metaThemeColor && themeDef.metaThemeColor[mode]) || (mode === "light" ? "#FFFFFF" : "#000000");
+
+      applyPocketResolvedTheme({
+        themeId: (themeDef && themeDef.id) || rawId || "metro",
+        mode,
+        accent,
+        slotAccent,
+        stylesheetUrl,
+        metaColor,
+      });
+    }
+
+    function applyPocketResolvedTheme(info) {
+      if (!info) return;
+      const mode = info.mode === "light" ? "light" : "dark";
+      const themeId = info.themeId && /^[a-z0-9][a-z0-9_-]*$/.test(info.themeId) ? info.themeId : "metro";
+      const accent = sanitizeHexColor(info.accent, "#00ABA9");
+      const slotAccent = sanitizeHexColor(info.slotAccent, "#60A917");
+
+      document.documentElement.setAttribute("data-theme-id", themeId);
+      document.documentElement.setAttribute("data-theme", mode);
+      document.documentElement.style.setProperty("--accent", accent);
+      document.documentElement.style.setProperty("--accent-fg", getPocketContrastColor(accent));
+      document.documentElement.style.setProperty("--slot-accent", slotAccent);
+      document.documentElement.style.setProperty("--slot-accent-fg", getPocketContrastColor(slotAccent));
+
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && info.metaColor) meta.setAttribute("content", info.metaColor);
+
+      const existingLink = document.getElementById("activeThemeStylesheet");
+      const targetHref = info.stylesheetUrl ? `${info.stylesheetUrl}?v=${THEME_ASSET_VERSION}` : "";
+      if (targetHref && /^\/themes\/[a-zA-Z0-9._\/-]+\.css\?v=/.test(targetHref)) {
+        if (existingLink) {
+          if (existingLink.getAttribute("href") !== targetHref) {
+            existingLink.setAttribute("href", targetHref);
+          }
+        } else {
+          const link = document.createElement("link");
+          link.id = "activeThemeStylesheet";
+          link.rel = "stylesheet";
+          link.href = targetHref;
+          document.head.appendChild(link);
+        }
+      } else if (existingLink) {
+        existingLink.remove();
+      }
+
+      try {
+        localStorage.setItem(THEME_KEY, JSON.stringify({ ...info, themeId, mode, accent, slotAccent }));
+        localStorage.setItem(LEGACY_THEME_KEY, mode);
       } catch (e) {}
     }
 
@@ -113,7 +240,12 @@
       try {
         const cachedTheme = localStorage.getItem(THEME_KEY);
         if (cachedTheme) {
-          document.documentElement.setAttribute("data-theme", cachedTheme);
+          applyPocketResolvedTheme(JSON.parse(cachedTheme));
+        } else {
+          const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+          if (legacyTheme === "light" || legacyTheme === "dark") {
+            document.documentElement.setAttribute("data-theme", legacyTheme);
+          }
         }
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
@@ -164,8 +296,8 @@
         if (!res.ok) throw new Error("Hub unreachable");
         const state = await res.json();
 
-        if (state && state.settings && state.settings.theme) {
-          applyPocketTheme(state.settings.theme);
+        if (state && state.settings) {
+          await applyPocketThemeFromSettings(state.settings);
         }
 
         const hasDirtyLocal = localStorage.getItem(DIRTY_KEY) === "1";
@@ -186,8 +318,8 @@
           if (postRes.status === 409) {
             const conflictData = await postRes.json();
             const latestState = (conflictData && conflictData.state) || state;
-            if (latestState && latestState.settings && latestState.settings.theme) {
-              applyPocketTheme(latestState.settings.theme);
+            if (latestState && latestState.settings) {
+              await applyPocketThemeFromSettings(latestState.settings);
             }
             latestState.groceries = groceriesToPush;
             postRes = await fetch("/api/state", {
@@ -257,8 +389,6 @@
       sorted.forEach((item) => {
         const row = document.createElement("div");
         row.className = "metro-list-item";
-        row.style.setProperty("--slot-accent", "#60A917");
-        row.style.setProperty("--slot-accent-fg", "#FFFFFF");
         row.innerHTML = `
           <div class="check-row" role="checkbox" aria-checked="${Boolean(item.checked)}" tabindex="0">
             <div class="metro-checkbox ${item.checked ? "checked" : ""}">${item.checked ? "✓" : ""}</div>

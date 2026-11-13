@@ -1,0 +1,34 @@
+{
+  "id": "beos",
+  "name": "BeOS R5",
+  "description": "Iconic BeOS R5 desktop chrome with signature yellow window tabs, silver-gray beveled frames, and high-contrast workspace tiles.",
+  "author": "Family Hub",
+  "order": 5,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#FFCB00",
+  "accents": [
+    { "name": "BeOS Yellow", "hex": "#FFCB00" },
+    { "name": "Haiku Blue", "hex": "#2A62B6" },
+    { "name": "Media Green", "hex": "#2B8A3E" },
+    { "name": "Tracker Red", "hex": "#C92A2A" },
+    { "name": "Workbench Teal", "hex": "#0B7285" }
+  ],
+  "extensionAccents": {
+    "calendar": "#2A62B6",
+    "meals": "#C92A2A",
+    "groceries": "#2B8A3E",
+    "chores": "#D97706",
+    "notes": "#FFCB00",
+    "task-checklist": "#0B7285"
+  },
+  "metaThemeColor": {
+    "light": "#D0D0D0",
+    "dark": "#1B222C"
+  },
+  "preview": {
+    "light": { "canvas": "#336699", "tile": "#E0E0E0", "accent": "#FFCB00" },
+    "dark": { "canvas": "#161E29", "tile": "#282E36", "accent": "#FFCB00" }
+  }
+}

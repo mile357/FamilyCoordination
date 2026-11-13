@@ -1,0 +1,37 @@
+{
+  "id": "metro",
+  "name": "Metro",
+  "description": "Original Windows Phone 8 / Metro design with sharp edges, pitch-black OLED dark mode, and bold lowercase typography.",
+  "author": "Family Hub",
+  "order": 1,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#00ABA9",
+  "accents": [
+    { "name": "Teal", "hex": "#00ABA9" },
+    { "name": "Cobalt", "hex": "#1BA1E2" },
+    { "name": "Crimson", "hex": "#A20025" },
+    { "name": "Lime", "hex": "#60A917" },
+    { "name": "Orange", "hex": "#FA6800" },
+    { "name": "Magenta", "hex": "#D80073" },
+    { "name": "Violet", "hex": "#6A00FF" },
+    { "name": "Amber", "hex": "#F0A30A" }
+  ],
+  "extensionAccents": {
+    "calendar": "#00ABA9",
+    "meals": "#A20025",
+    "groceries": "#60A917",
+    "chores": "#FA6800",
+    "notes": "#6A00FF",
+    "task-checklist": "#0050EF"
+  },
+  "metaThemeColor": {
+    "dark": "#000000",
+    "light": "#FFFFFF"
+  },
+  "preview": {
+    "dark": { "canvas": "#000000", "tile": "#111111", "accent": "#00ABA9" },
+    "light": { "canvas": "#FFFFFF", "tile": "#F3F3F3", "accent": "#00ABA9" }
+  }
+}

@@ -311,7 +311,7 @@ export default {
         const isEditing = editingCatalogId === catMeal.id;
         const row = document.createElement("div");
         row.className = "metro-list-item";
-        row.style.borderLeft = "4px solid #A20025";
+        row.style.borderLeft = "4px solid var(--slot-accent, #A20025)";
 
         if (isEditing) {
           row.style.flexDirection = "column";
@@ -321,14 +321,14 @@ export default {
             <input class="metro-input" data-edit="name" value="${escapeHtml(catMeal.name)}" placeholder="meal name..." />
             <input class="metro-input" data-edit="ings" value="${escapeHtml(catIngs.join(", "))}" placeholder="linked ingredients (comma-separated)..." />
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-              <button class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete-catalog">
+              <button class="metro-btn subtle" style="border-color:var(--danger-color, #A20025); color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete-catalog">
                 delete recipe
               </button>
               <div style="display:flex; gap:6px;">
                 <button class="metro-btn subtle" style="padding:4px 10px; font-size:12px;" data-action="cancel-edit">
                   cancel
                 </button>
-                <button class="metro-btn accent" style="--accent:#A20025; --accent-fg:#FFFFFF; padding:4px 12px; font-size:12px;" data-action="save-edit">
+                <button class="metro-btn accent" style="--accent:var(--slot-accent, #A20025); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:4px 12px; font-size:12px;" data-action="save-edit">
                   save
                 </button>
               </div>
@@ -483,7 +483,7 @@ export default {
         <div class="item-text-wrap" style="min-width:0; flex:1;">
           <span class="item-primary">${escapeHtml(meal.name)}</span>
         </div>
-        <button class="metro-btn accent" style="--accent:#A20025; padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ate-meal">
+        <button class="metro-btn accent" style="--accent:var(--slot-accent, #A20025); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ate-meal">
           ate!
         </button>
       `;

@@ -431,11 +431,15 @@ export default {
       const { ev, startDt, endDt } = entry;
       const cal = calMap.get(ev.calendarId);
       const color = safeColor(cal && cal.color, fallbackColor);
+      const evTextColor =
+        typeof ctx.getReadableAccentColor === "function"
+          ? ctx.getReadableAccentColor(color)
+          : color;
       const timeLabel = ev.allDay
         ? "all day"
         : `${formatTimeShort(startDt)} – ${formatTimeShort(endDt)}`;
       return `
-        <div class="metro-event-tile" style="--ev-color: ${color}; ${extraStyle}">
+        <div class="metro-event-tile" style="--ev-color: ${color}; --ev-text-color: ${evTextColor}; ${extraStyle}">
           <div class="ev-time">${timeLabel}</div>
           <div class="ev-title">${escapeHtml(ev.title)}</div>
           <div class="ev-meta">
@@ -609,7 +613,12 @@ export default {
 
       const tile = document.createElement("div");
       tile.className = `metro-event-tile timeline-event-tile ${sizeClass}`.trim();
+      const evTextColor =
+        typeof ctx.getReadableAccentColor === "function"
+          ? ctx.getReadableAccentColor(color)
+          : color;
       tile.style.setProperty("--ev-color", color);
+      tile.style.setProperty("--ev-text-color", evTextColor);
       tile.style.top = `${topPx}px`;
       tile.style.height = `${heightPx}px`;
       tile.style.left = leftCalc;
@@ -659,11 +668,10 @@ export default {
           ? "today"
           : offset === 1
           ? "tomorrow"
-          : dayDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+          : dayDate.toLocaleDateString("en-US", { weekday: "long" });
 
       const dateLabel = dayDate
-        .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        .toLowerCase();
+        .toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
       const dayEntries = eventsByDate.get(dateKey(dayDate)) || [];
 

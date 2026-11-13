@@ -1,0 +1,349 @@
+/*
+ * Macintosh Human Interface Guidelines Theme — System 7.5 / Mac OS 8 Platinum
+ * Classic Macintosh Appearance Manager beveled windows, 6-line pinstripe title bars,
+ * crisp charcoal/geneva typography, double-ring default push buttons, and high-contrast ink.
+ */
+
+[data-theme-id="macintosh"] {
+  --font-display: "Charcoal", "Chicago", "Geneva", "Lucida Grande", "Helvetica Neue", system-ui, sans-serif;
+  --font-body: "Geneva", "Lucida Grande", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "Monaco", "Courier New", ui-monospace, monospace;
+
+  --title-size: 22px;
+  --title-weight: 700;
+  --title-tracking: 0;
+  --slot-title-size: 16px;
+  --slot-title-weight: 700;
+  --card-title-weight: 700;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 20px;
+  --clock-weight: 700;
+  --date-size: 14px;
+  --date-weight: 600;
+  --header-height: 52px;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: none;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: none;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --radius-slot: 2px;
+  --radius-card: 0px;
+  --radius-btn: 4px;
+  --radius-input: 0px;
+  --radius-pill: 3px;
+  --radius-checkbox: 0px;
+}
+
+/* Classic Light Platinum Desktop (Default) */
+[data-theme-id="macintosh"][data-theme="light"],
+[data-theme-id="macintosh"] {
+  --bg-canvas: #5c7094;
+  --bg-canvas-image:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.14) 1px, transparent 1px);
+  --bg-header: #e8e8e8;
+  --bg-surface: #dddddd;
+  --bg-surface-elevated: #ececec;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #f5f5f5;
+  --bg-tile-subtle: #e5e5e5;
+  --bg-appbar: #d4d4d4;
+  --bg-input: #ffffff;
+  --bg-flyout: #dddddd;
+  --bg-backdrop: rgba(0, 0, 0, 0.36);
+  --bg-wireframe-overlay: rgba(220, 220, 220, 0.85);
+
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --text-muted: #595959;
+
+  --border-color: #888888;
+  --border-strong: #000000;
+
+  --danger-color: #b80028;
+  --danger-text: #a20025;
+  --success-color: #1f6e28;
+  --warning-color: #b54700;
+  --info-color: #1b5299;
+
+  --mac-window-chrome: #dddddd;
+  --mac-bevel-light: #ffffff;
+  --mac-bevel-dark: #888888;
+  --mac-pinstripe-a: #ffffff;
+  --mac-pinstripe-b: #9a9a9a;
+
+  --slot-border: 1px solid #000000;
+  --slot-border-top: 1px solid #000000;
+  --card-border: 1px solid #999999;
+  --header-border-bottom: 1px solid #000000;
+
+  --shadow-slot:
+    1px 1px 0 #000000,
+    2px 2px 0 rgba(0, 0, 0, 0.25);
+  --shadow-card: none;
+  --shadow-flyout: -3px 0 0 #000000;
+
+  --scrollbar-track: #cccccc;
+  --scrollbar-thumb: #9a9ecc;
+  --scrollbar-thumb-hover: #6e75b5;
+}
+
+/* Mac Dark Graphite / Platinum Night Variant */
+[data-theme-id="macintosh"][data-theme="dark"] {
+  --bg-canvas: #1f2430;
+  --bg-canvas-image:
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.25) 1px, transparent 1px);
+  --bg-header: #333742;
+  --bg-surface: #2c303a;
+  --bg-surface-elevated: #383d4a;
+  --bg-tile: #22262e;
+  --bg-tile-hover: #2d323d;
+  --bg-tile-subtle: #313643;
+  --bg-appbar: #282c36;
+  --bg-input: #171a20;
+  --bg-flyout: #2c303a;
+  --bg-backdrop: rgba(0, 0, 0, 0.58);
+  --bg-wireframe-overlay: rgba(34, 38, 46, 0.88);
+
+  --text-primary: #f2f4f8;
+  --text-secondary: #c2c8d4;
+  --text-muted: #9199a8;
+
+  --border-color: #555c6e;
+  --border-strong: #9ca5ba;
+
+  --danger-color: #d9465f;
+  --danger-text: #ff8599;
+  --success-color: #3da65a;
+  --warning-color: #e68a2e;
+  --info-color: #5c9eff;
+
+  --mac-window-chrome: #343946;
+  --mac-bevel-light: #4e5566;
+  --mac-bevel-dark: #16181f;
+  --mac-pinstripe-a: #464c5c;
+  --mac-pinstripe-b: #1b1e26;
+
+  --slot-border: 1px solid #0b0c10;
+  --slot-border-top: 1px solid #0b0c10;
+  --card-border: 1px solid #484f60;
+  --header-border-bottom: 1px solid #0b0c10;
+
+  --shadow-slot: 2px 2px 0 rgba(0, 0, 0, 0.55);
+  --shadow-flyout: -3px 0 0 #0b0c10;
+
+  --scrollbar-track: #252933;
+  --scrollbar-thumb: #596380;
+  --scrollbar-thumb-hover: #7380a3;
+}
+
+[data-theme-id="macintosh"] body {
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+}
+
+/* Classic Macintosh Menu Bar */
+[data-theme-id="macintosh"] .panorama-header {
+  height: 50px;
+  padding: 6px 20px;
+  box-shadow: inset 0 1px 0 var(--mac-bevel-light), inset 0 -1px 0 var(--mac-bevel-dark);
+}
+
+[data-theme-id="macintosh"] .panorama-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 21px;
+}
+
+[data-theme-id="macintosh"] .panorama-title::before {
+  content: "⌘";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 1px solid var(--border-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Mac OS 8 Platinum Window Container */
+[data-theme-id="macintosh"] .metro-slot {
+  background: var(--mac-window-chrome);
+  padding: 6px;
+  box-shadow:
+    inset 1px 1px 0 var(--mac-bevel-light),
+    inset -1px -1px 0 var(--mac-bevel-dark),
+    var(--shadow-slot);
+  gap: 6px;
+}
+
+/* Iconic Mac OS 8 6-Line Pinstripe Title Bar */
+[data-theme-id="macintosh"] .slot-header {
+  min-height: 36px;
+  padding: 3px 6px;
+  margin-bottom: 0;
+  border: 1px solid var(--border-strong);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      var(--mac-pinstripe-a) 0px,
+      var(--mac-pinstripe-a) 1px,
+      var(--mac-pinstripe-b) 1px,
+      var(--mac-pinstripe-b) 2px
+    );
+  background-clip: padding-box;
+  align-items: center;
+}
+
+[data-theme-id="macintosh"] .slot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--mac-window-chrome);
+  padding: 2px 10px;
+  font-size: 15px;
+  line-height: 1.2;
+  border-radius: 0;
+}
+
+[data-theme-id="macintosh"] .slot-title::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--slot-accent, var(--accent));
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+
+/* Recessed inner scroll pane like a classic Finder window */
+[data-theme-id="macintosh"] .slot-body {
+  background: var(--bg-tile);
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-dark);
+  padding: 8px;
+  gap: 6px;
+}
+
+/* Classic 3D Beveled Buttons & Default Double-Ring Button */
+[data-theme-id="macintosh"] .metro-btn {
+  background: var(--mac-window-chrome);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 5px 14px;
+  font-weight: 600;
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-light), inset -1px -1px 0 var(--mac-bevel-dark);
+}
+
+[data-theme-id="macintosh"] .metro-btn.accent {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 1px solid var(--border-strong);
+  outline: 2px solid var(--border-strong);
+  outline-offset: 1px;
+}
+
+[data-theme-id="macintosh"] .metro-ellipsis-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--mac-window-chrome);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-light), inset -1px -1px 0 var(--mac-bevel-dark);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+[data-theme-id="macintosh"] .metro-ellipsis-btn.global-ellipsis {
+  width: 36px;
+  height: 36px;
+}
+
+[data-theme-id="macintosh"] .metro-input {
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-dark);
+}
+
+[data-theme-id="macintosh"] .metro-checkbox {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-dark);
+}
+
+[data-theme-id="macintosh"] .metro-checkbox.checked {
+  background: var(--slot-accent, var(--accent));
+  border-color: var(--border-strong);
+  color: var(--slot-accent-fg, #ffffff);
+  box-shadow: none;
+}
+
+[data-theme-id="macintosh"] .metro-list-item,
+[data-theme-id="macintosh"] .meal-card,
+[data-theme-id="macintosh"] .extension-card {
+  background: var(--bg-tile-subtle);
+  border: 1px solid var(--border-color);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-light);
+}
+
+[data-theme-id="macintosh"] .sub-pivots {
+  box-shadow: none;
+  gap: 5px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="macintosh"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 5px 6px;
+  background: var(--mac-window-chrome);
+  border: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--mac-bevel-light);
+}
+
+[data-theme-id="macintosh"] .settings-pivots .pivot-tab {
+  font-size: 14px;
+  padding: 6px 10px;
+}
+
+[data-theme-id="macintosh"] .pivot-tab.active {
+  background: var(--bg-tile);
+  color: var(--text-primary);
+  border-bottom-color: var(--border-strong);
+  box-shadow: inset 0 -2px 0 var(--slot-accent, var(--accent)), inset 1px 1px 0 var(--mac-bevel-light);
+}
+
+[data-theme-id="macintosh"] .slot-body::-webkit-scrollbar,
+[data-theme-id="macintosh"] .metro-flyout::-webkit-scrollbar {
+  width: 14px;
+}
+
+[data-theme-id="macintosh"] .slot-body::-webkit-scrollbar-thumb,
+[data-theme-id="macintosh"] .metro-flyout::-webkit-scrollbar-thumb {
+  border: 1px solid var(--border-strong);
+  background: var(--scrollbar-thumb);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+[data-theme-id="macintosh"] .metro-toggle {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-tile-subtle);
+}

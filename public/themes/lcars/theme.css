@@ -1,0 +1,539 @@
+/*
+ * Star Trek LCARS Operations Console Theme (Dark Only)
+ * Authentic Okudagram-inspired sweeping asymmetric rounded elbows,
+ * capsule endcaps, crisp pitch-black telemetry canvas, and high-contrast warm ink.
+ * Structural frames keep all interactive lists calm and effortlessly readable.
+ */
+
+@font-face {
+  font-family: "Antonio";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/antonio-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Antonio";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/antonio-700.woff2") format("woff2");
+}
+
+[data-theme-id="lcars"] {
+  --font-display: "Antonio", "Oswald", "DIN Condensed", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --font-body: "Inter", "Segoe UI", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Antonio", "Share Tech Mono", "Courier New", ui-monospace, monospace;
+
+  --lcars-amber: #ff9900;
+  --lcars-peach: #ffaa90;
+  --lcars-lilac: #cc99cc;
+  --lcars-ice: #99ccff;
+  --lcars-gold: #ffcc66;
+  --lcars-coral: #ff7755;
+
+  --title-size: 30px;
+  --title-weight: 700;
+  --title-tracking: 0.06em;
+  --slot-title-size: 21px;
+  --slot-title-weight: 700;
+  --card-title-weight: 700;
+  --body-weight: 400;
+  --letter-spacing-body: 0.01em;
+
+  --clock-size: 38px;
+  --clock-weight: 700;
+  --date-size: 16px;
+  --date-weight: 600;
+  --header-height: 76px;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #000000;
+  --bg-canvas-image: none;
+  --bg-header: #000000;
+  --bg-surface: #0a0b10;
+  --bg-surface-elevated: #141620;
+  --bg-tile: #07080c;
+  --bg-tile-hover: #131622;
+  --bg-tile-subtle: #0d0f17;
+  --bg-appbar: #0c0d14;
+  --bg-input: #000000;
+  --bg-flyout: #06070b;
+  --bg-backdrop: rgba(0, 0, 0, 0.80);
+  --bg-wireframe-overlay: rgba(0, 0, 0, 0.88);
+
+  --text-primary: #fff4e0;
+  --text-secondary: #ffcb80;
+  --text-muted: #c29b66;
+
+  --border-color: rgba(255, 170, 100, 0.28);
+  --border-strong: rgba(255, 204, 102, 0.65);
+
+  --danger-color: #ee5555;
+  --danger-text: #ff8585;
+  --success-color: #99ccff;
+  --warning-color: #ff9900;
+  --info-color: #cc99cc;
+  --current-hour-bg: rgba(255, 153, 0, 0.14);
+
+  --radius-slot: 0px;
+  --radius-card: 10px;
+  --radius-btn: 9999px;
+  --radius-input: 16px;
+  --radius-pill: 9999px;
+  --radius-checkbox: 6px;
+
+  --shadow-slot: none;
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 0 #000000;
+
+  --slot-border: none;
+  --slot-border-top: none;
+  --card-border: 1px solid rgba(255, 180, 110, 0.22);
+  --header-border-bottom: none;
+
+  --scrollbar-track: #0a0b10;
+  --scrollbar-thumb: var(--accent);
+  --scrollbar-thumb-hover: var(--lcars-gold);
+}
+
+/* ==========================================================================
+   MAIN BRIDGE TOP COMMAND BAR
+   ========================================================================== */
+[data-theme-id="lcars"] .panorama-header {
+  height: var(--header-height);
+  padding: 12px 28px 10px 28px;
+  gap: 14px;
+  position: relative;
+}
+
+[data-theme-id="lcars"] .panorama-header::after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 0;
+  height: 5px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) 44%,
+    #000000 44%,
+    #000000 45%,
+    var(--lcars-lilac) 45%,
+    var(--lcars-lilac) 74%,
+    #000000 74%,
+    #000000 75%,
+    var(--lcars-ice) 75%,
+    var(--lcars-ice) 100%
+  );
+  pointer-events: none;
+}
+
+[data-theme-id="lcars"] .panorama-brand {
+  background: var(--accent);
+  color: #000000;
+  padding: 6px 20px 6px 26px;
+  border-radius: 9999px 10px 10px 28px;
+  gap: 14px;
+  align-items: center;
+  min-height: 44px;
+}
+
+[data-theme-id="lcars"] .panorama-title {
+  color: #000000;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+[data-theme-id="lcars"] .panorama-subtitle {
+  background: #000000;
+  color: var(--lcars-gold);
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: none;
+}
+
+[data-theme-id="lcars"] .panorama-subtitle:empty {
+  display: none;
+}
+
+[data-theme-id="lcars"] .panorama-status {
+  gap: 14px;
+}
+
+[data-theme-id="lcars"] .clock-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+[data-theme-id="lcars"] .clock-date {
+  font-family: var(--font-display);
+  color: var(--lcars-ice);
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+
+[data-theme-id="lcars"] .clock-time {
+  font-family: var(--font-display);
+  color: var(--lcars-gold);
+  font-size: 34px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="lcars"] .header-actions .metro-ellipsis-btn {
+  width: 54px;
+  height: 40px;
+  padding: 0;
+  border-radius: 9999px;
+  background: var(--lcars-lilac);
+  color: #000000;
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+[data-theme-id="lcars"] .header-actions .metro-ellipsis-btn:hover {
+  background: var(--lcars-gold);
+  color: #000000;
+}
+
+/* ==========================================================================
+   LCARS ELBOW SLOT CHROME (SINGLE, HALF, & DOUBLE CALENDAR HEADER)
+   ========================================================================== */
+[data-theme-id="lcars"] .metro-slot:not(.arrange-wireframe) {
+  background: #000000;
+  border: none;
+  padding: 0;
+  gap: 6px;
+}
+
+[data-theme-id="lcars"] .slot-header {
+  min-height: 40px;
+  padding: 0;
+  margin-bottom: 0;
+  gap: 6px;
+  align-items: stretch;
+  border-bottom: none;
+}
+
+/* Single-header rounded LCARS left elbow capsule */
+[data-theme-id="lcars"] .slot-title-group {
+  background: var(--slot-accent, var(--accent));
+  color: var(--slot-accent-fg, #000000);
+  border-top-left-radius: 26px;
+  border-bottom-left-radius: 6px;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  padding: 6px 16px 6px 24px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  position: relative;
+}
+
+[data-theme-id="lcars"] .slot-title-group::after {
+  content: "";
+  width: 24px;
+  height: 14px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.24);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+[data-theme-id="lcars"] .slot-title {
+  color: var(--slot-accent-fg, #000000);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+}
+
+[data-theme-id="lcars"] .slot-header .metro-ellipsis-btn {
+  width: 52px;
+  min-width: 52px;
+  height: auto;
+  min-height: 40px;
+  border-radius: 4px 9999px 9999px 4px;
+  background: var(--lcars-lilac);
+  color: #000000;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0;
+  padding: 0;
+}
+
+[data-theme-id="lcars"] .slot-header .metro-ellipsis-btn:hover {
+  background: var(--lcars-gold);
+}
+
+[data-theme-id="lcars"] .slot-header:hover .slot-title-group {
+  filter: brightness(1.08);
+}
+
+/* Split LCARS header for double-width Calendar slot */
+[data-theme-id="lcars"] .slot-header.double-slot-header {
+  gap: 8px;
+  align-items: stretch;
+}
+
+[data-theme-id="lcars"] .slot-header.double-slot-header > .slot-title {
+  background: var(--slot-accent, var(--accent));
+  color: var(--slot-accent-fg, #000000);
+  border-top-left-radius: 26px;
+  border-bottom-left-radius: 6px;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  padding: 6px 16px 6px 24px;
+  display: flex;
+  align-items: center;
+}
+
+[data-theme-id="lcars"] .double-slot-right-head {
+  gap: 6px;
+  align-items: stretch;
+}
+
+[data-theme-id="lcars"] .double-slot-right-head > .slot-title {
+  flex: 1;
+  background: var(--lcars-ice);
+  color: #000000;
+  border-radius: 4px;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+}
+
+/* Sweeping LCARS Left Spine Rail + Curved Bottom Terminator */
+[data-theme-id="lcars"] .slot-body {
+  border-left: 12px solid var(--slot-accent, var(--accent));
+  border-bottom: 5px solid color-mix(in srgb, var(--slot-accent, var(--accent)) 72%, transparent);
+  border-bottom-left-radius: 22px;
+  background: #06070b;
+  padding: 10px 8px 14px 14px;
+  gap: 8px;
+}
+
+[data-theme-id="lcars"] .slot-inline-drawer.open {
+  border-left: 12px solid var(--slot-accent, var(--accent));
+  background: #0b0d14;
+  padding-left: 12px;
+}
+
+[data-theme-id="lcars"] .slot-inline-pane {
+  border-left-color: var(--lcars-gold);
+}
+
+/* ==========================================================================
+   CALM READABLE CONTENT & INTERACTIVE PILL CONTROLS
+   ========================================================================== */
+[data-theme-id="lcars"] .metro-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.07em;
+  padding: 7px 16px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--slot-accent, var(--accent));
+  background: #141722;
+  color: #fff4e0;
+}
+
+[data-theme-id="lcars"] .metro-btn.accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000000;
+}
+
+[data-theme-id="lcars"] .metro-btn.subtle {
+  border-color: rgba(255, 204, 102, 0.35);
+  color: var(--lcars-gold);
+  background: transparent;
+}
+
+[data-theme-id="lcars"] .metro-input {
+  border-radius: 16px;
+  border: 1.5px solid var(--border-strong);
+  background: #08090e;
+  color: #fff4e0;
+  padding: 7px 14px;
+}
+
+[data-theme-id="lcars"] .metro-input:focus {
+  border-color: var(--lcars-ice);
+  box-shadow: 0 0 0 1px var(--lcars-ice);
+}
+
+[data-theme-id="lcars"] .metro-checkbox {
+  border-radius: 6px;
+  border: 2px solid var(--slot-accent, var(--accent));
+  background: #000000;
+}
+
+[data-theme-id="lcars"] .metro-checkbox.checked {
+  background: var(--slot-accent, var(--accent));
+  color: #000000;
+}
+
+[data-theme-id="lcars"] .metro-list-item,
+[data-theme-id="lcars"] .meal-card,
+[data-theme-id="lcars"] .extension-card {
+  background: #0d0f18;
+  border: 1px solid rgba(255, 175, 110, 0.16);
+  border-left: 6px solid var(--slot-accent, var(--accent));
+  border-radius: 4px 12px 12px 4px;
+}
+
+[data-theme-id="lcars"] .metro-event-tile {
+  background: #0f121c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 6px solid var(--ev-color, var(--accent));
+  border-radius: 4px 12px 12px 4px;
+}
+
+[data-theme-id="lcars"] .ev-time,
+[data-theme-id="lcars"] .hour-label,
+[data-theme-id="lcars"] .agenda-day-name,
+[data-theme-id="lcars"] .pivot-tab,
+[data-theme-id="lcars"] .card-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+}
+
+[data-theme-id="lcars"] .sub-pivots {
+  background: transparent;
+  box-shadow: none;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="lcars"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 6px 6px;
+  border-radius: 9999px;
+  background: #171a26;
+  color: var(--lcars-gold);
+  border-bottom: none;
+}
+
+[data-theme-id="lcars"] .settings-pivots .pivot-tab {
+  font-size: 15.5px;
+  letter-spacing: 0.05em;
+  padding: 6px 10px;
+}
+
+[data-theme-id="lcars"] .pivot-tab.active {
+  background: var(--slot-accent, var(--accent));
+  color: #000000;
+  border-bottom: none;
+}
+
+[data-theme-id="lcars"] .metro-toggle {
+  width: 58px;
+  height: 30px;
+  border-radius: 9999px;
+  border: 2px solid var(--lcars-amber);
+  background: #000000;
+}
+
+[data-theme-id="lcars"] .metro-toggle::after {
+  width: 20px;
+  height: 20px;
+  top: 3px;
+  left: 4px;
+  border-radius: 9999px;
+  background: var(--lcars-amber);
+}
+
+[data-theme-id="lcars"] .metro-toggle.on {
+  background: var(--lcars-gold);
+  border-color: var(--lcars-gold);
+}
+
+[data-theme-id="lcars"] .metro-toggle.on::after {
+  transform: translateX(26px);
+  background: #000000;
+}
+
+[data-theme-id="lcars"] .catalog-icon-btn,
+[data-theme-id="lcars"] .slot-icon-btn {
+  border-radius: 9999px;
+}
+
+[data-theme-id="lcars"] .metro-flyout {
+  border-left: 16px solid var(--accent);
+  background: #06070b;
+}
+
+[data-theme-id="lcars"] .flyout-section-title,
+[data-theme-id="lcars"] .flyout-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  color: var(--lcars-amber);
+}
+
+[data-theme-id="lcars"] .toast-banner {
+  border-radius: 9999px;
+  border: 2px solid var(--lcars-gold);
+  background: #000000;
+  color: var(--lcars-gold);
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+
+/* Companion Phone Tricorder PADD Styling (/go.html) */
+[data-theme-id="lcars"] .pocket-header {
+  background: var(--slot-accent, var(--accent));
+  color: #000000;
+  padding: 8px 14px 8px 20px;
+  border-radius: 24px 9999px 9999px 6px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+[data-theme-id="lcars"] .pocket-header .pocket-title {
+  color: #000000;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+[data-theme-id="lcars"] .pocket-header #btnCopyNotes {
+  background: #000000;
+  color: var(--lcars-gold);
+  border: 2px solid #000000;
+}
+
+[data-theme-id="lcars"] #mobileGrocList {
+  border-left: 8px solid var(--slot-accent, var(--accent));
+  border-bottom: 4px solid color-mix(in srgb, var(--slot-accent, var(--accent)) 65%, transparent);
+  border-bottom-left-radius: 18px;
+  padding: 6px 0 12px 10px;
+}

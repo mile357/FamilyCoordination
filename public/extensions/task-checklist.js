@@ -71,8 +71,8 @@ function ensureStyles() {
       gap: 10px;
     }
     .tc-group {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--bg-tile);
+      border: 1px solid var(--border-color);
       padding: 8px 10px;
     }
     .tc-group.is-complete {
@@ -117,14 +117,14 @@ function ensureStyles() {
       font-size: 11px;
       font-weight: 600;
       color: var(--text-secondary);
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--bg-tile-hover);
       padding: 2px 6px;
       flex-shrink: 0;
       letter-spacing: 0.04em;
     }
     .tc-group-count.done {
       background: var(--slot-accent, #0050EF);
-      color: #ffffff;
+      color: var(--slot-accent-fg, #ffffff);
     }
     .tc-group-actions {
       display: flex;
@@ -152,7 +152,7 @@ function ensureStyles() {
       flex-direction: column;
       gap: 6px;
       padding-left: 10px;
-      border-left: 2px solid rgba(255, 255, 255, 0.12);
+      border-left: 2px solid var(--border-color);
     }
     .tc-edit-step-row {
       display: flex;
@@ -182,7 +182,7 @@ function ensureStyles() {
       padding: 4px 2px;
     }
     .tc-reset-btn.has-done {
-      color: var(--slot-accent, #0050EF);
+      color: var(--slot-accent-text, var(--slot-accent, #0050EF));
       opacity: 1;
     }
   `;
@@ -234,7 +234,7 @@ export default {
     wrap.style.marginBottom = "0";
     wrap.innerHTML = `
       <input class="metro-input" id="tcItemInput_${sid}" placeholder="checklist item (e.g. Clean bathroom)..." />
-      <button class="metro-btn accent" style="--accent:var(--slot-accent, #0050EF); --accent-fg:#FFFFFF" id="btnAddTc_${sid}">add</button>
+      <button class="metro-btn accent" style="--accent:var(--slot-accent, #0050EF); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnAddTc_${sid}">add</button>
       ${
         anyChecked
           ? `<button type="button" class="metro-btn subtle" id="btnResetAllTc_${sid}">reset all</button>`
@@ -346,7 +346,7 @@ export default {
               <button type="button" class="metro-btn accent" style="padding:5px 10px; font-size:12px;" data-action="add-step">add</button>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px;">
-              <button type="button" class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete-item">
+              <button type="button" class="metro-btn subtle" style="border-color:var(--danger-color, #A20025); color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete-item">
                 delete item
               </button>
               <div style="display:flex; gap:6px;">

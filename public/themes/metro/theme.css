@@ -1,0 +1,17 @@
+/*
+ * Metro Theme — Reference Baseline
+ * Inherits crisp edge-to-edge Metro geometry and tokens from /styles.css.
+ */
+
+[data-theme-id="metro"] {
+  --font-display: "Segoe UI", "Roboto", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Segoe UI", "Roboto", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --title-transform: lowercase;
+  --slot-title-transform: lowercase;
+  --section-transform: uppercase;
+  --label-transform: lowercase;
+  --btn-transform: lowercase;
+  --clock-transform: lowercase;
+  --date-transform: lowercase;
+  --agenda-day-transform: lowercase;
+}

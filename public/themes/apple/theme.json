@@ -1,0 +1,37 @@
+{
+  "id": "apple",
+  "name": "Apple Liquid Glass",
+  "description": "Modern Apple Human Interface Guidelines with translucent Liquid Glass surfaces, SF typography, and continuous pill geometry.",
+  "author": "Family Hub",
+  "order": 2,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#0A84FF",
+  "accents": [
+    { "name": "System Blue", "hex": "#0A84FF" },
+    { "name": "Indigo", "hex": "#5E5CE6" },
+    { "name": "Purple", "hex": "#BF5AF2" },
+    { "name": "Pink", "hex": "#FF375F" },
+    { "name": "Orange", "hex": "#FF9F0A" },
+    { "name": "Green", "hex": "#30D158" },
+    { "name": "Teal", "hex": "#40C8E0" },
+    { "name": "Red", "hex": "#FF453A" }
+  ],
+  "extensionAccents": {
+    "calendar": "#0A84FF",
+    "meals": "#FF375F",
+    "groceries": "#30D158",
+    "chores": "#FF9F0A",
+    "notes": "#BF5AF2",
+    "task-checklist": "#5E5CE6"
+  },
+  "metaThemeColor": {
+    "dark": "#0B0D12",
+    "light": "#F2F2F7"
+  },
+  "preview": {
+    "dark": { "canvas": "#0B0D12", "tile": "#1C1E26", "accent": "#0A84FF" },
+    "light": { "canvas": "#F2F2F7", "tile": "#FFFFFF", "accent": "#007AFF" }
+  }
+}

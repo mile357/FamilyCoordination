@@ -1,0 +1,232 @@
+/*
+ * Google Material Design 3 (Material You) Theme
+ * Tonal surface containers, Expressive pill buttons, M3 switch geometry,
+ * and dynamic Pixel Tablet color harmony.
+ */
+
+[data-theme-id="material"] {
+  --font-display: "Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-body: "Roboto", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+
+  --title-size: 36px;
+  --title-weight: 500;
+  --title-tracking: -0.015em;
+  --slot-title-size: 22px;
+  --slot-title-weight: 500;
+  --card-title-weight: 500;
+  --body-weight: 400;
+  --letter-spacing-body: 0.005em;
+
+  --clock-size: 36px;
+  --clock-weight: 400;
+  --date-size: 16px;
+  --date-weight: 500;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: none;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --bg-canvas: #111318;
+  --bg-header: #111318;
+  --bg-surface: #1d2026;
+  --bg-surface-elevated: #282c34;
+  --bg-tile: #1d2026;
+  --bg-tile-hover: #282c34;
+  --bg-tile-subtle: #181a20;
+  --bg-appbar: #23262e;
+  --bg-input: #282c34;
+  --bg-flyout: #1b1e24;
+  --bg-backdrop: rgba(0, 0, 0, 0.52);
+  --bg-wireframe-overlay: rgba(17, 19, 24, 0.84);
+
+  --text-primary: #e3e3e9;
+  --text-secondary: #c4c6d0;
+  --text-muted: #8e9099;
+
+  --border-color: rgba(142, 144, 153, 0.24);
+  --border-strong: rgba(196, 198, 208, 0.45);
+
+  --danger-color: #f2b8b5;
+  --danger-text: #f2b8b5;
+  --success-color: #6dd58c;
+  --warning-color: #fcc934;
+  --info-color: #a8c7fa;
+
+  --radius-slot: 28px;
+  --radius-card: 16px;
+  --radius-btn: 9999px;
+  --radius-input: 14px;
+  --radius-pill: 9999px;
+  --radius-checkbox: 6px;
+
+  --shadow-slot: 0 2px 10px rgba(0, 0, 0, 0.26);
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 32px rgba(0, 0, 0, 0.45);
+
+  --slot-border: 1px solid rgba(255, 255, 255, 0.06);
+  --slot-border-top: 1px solid rgba(255, 255, 255, 0.06);
+  --card-border: 1px solid transparent;
+  --header-border-bottom: none;
+}
+
+[data-theme-id="material"][data-theme="light"] {
+  --bg-canvas: #f5f6fc;
+  --bg-header: #f5f6fc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #eceff8;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #f0f3fb;
+  --bg-tile-subtle: #eff1f8;
+  --bg-appbar: #e8ecf6;
+  --bg-input: #eef0f7;
+  --bg-flyout: #f8f9ff;
+  --bg-backdrop: rgba(17, 24, 39, 0.28);
+  --bg-wireframe-overlay: rgba(245, 246, 252, 0.88);
+
+  --text-primary: #1a1c20;
+  --text-secondary: #44474e;
+  --text-muted: #74777f;
+
+  --border-color: rgba(116, 119, 127, 0.24);
+  --border-strong: rgba(68, 71, 78, 0.45);
+
+  --danger-color: #ba1a1a;
+  --danger-text: #ba1a1a;
+  --success-color: #146c2e;
+  --warning-color: #9e5600;
+  --info-color: #0b57d0;
+
+  --shadow-slot: 0 1px 4px rgba(16, 24, 40, 0.07), 0 4px 16px rgba(16, 24, 40, 0.04);
+  --shadow-flyout: -10px 0 32px rgba(16, 24, 40, 0.14);
+
+  --slot-border: 1px solid rgba(0, 0, 0, 0.05);
+  --slot-border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme-id="material"] .metro-slot {
+  padding: 16px 18px;
+}
+
+[data-theme-id="material"] .slot-header {
+  padding-bottom: 6px;
+}
+
+[data-theme-id="material"] .slot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-theme-id="material"] .slot-title::before {
+  content: "";
+  width: 6px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--slot-accent, var(--accent));
+  flex-shrink: 0;
+}
+
+[data-theme-id="material"] .metro-btn {
+  padding: 8px 18px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-elevated);
+}
+
+[data-theme-id="material"] .metro-btn.accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+[data-theme-id="material"] .metro-ellipsis-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 9999px;
+  background: var(--bg-tile-subtle);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme-id="material"] .metro-ellipsis-btn.global-ellipsis {
+  width: 40px;
+  height: 40px;
+}
+
+[data-theme-id="material"] .metro-list-item,
+[data-theme-id="material"] .meal-card,
+[data-theme-id="material"] .metro-event-tile {
+  background: var(--bg-tile-subtle);
+}
+
+[data-theme-id="material"] .metro-toggle {
+  width: 52px;
+  height: 32px;
+  border-radius: 9999px;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-tile-subtle);
+}
+
+[data-theme-id="material"] .metro-toggle::after {
+  width: 16px;
+  height: 16px;
+  top: 6px;
+  left: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+[data-theme-id="material"] .metro-toggle.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-theme-id="material"] .metro-toggle.on::after {
+  width: 24px;
+  height: 24px;
+  top: 2px;
+  left: 2px;
+  transform: translateX(22px);
+  background: var(--accent-fg);
+}
+
+[data-theme-id="material"] .sub-pivots {
+  box-shadow: none;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="material"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+}
+
+[data-theme-id="material"] .settings-pivots .pivot-tab {
+  font-size: 14px;
+  padding: 7px 10px;
+}
+
+[data-theme-id="material"] .pivot-tab.active {
+  background: color-mix(in srgb, var(--slot-accent, var(--accent)) 22%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--slot-accent, var(--accent)) 65%, transparent);
+  color: var(--text-primary);
+}
+
+[data-theme-id="material"] .metro-flyout {
+  border-top-left-radius: 28px;
+  border-bottom-left-radius: 28px;
+}

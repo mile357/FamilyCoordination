@@ -81,10 +81,8 @@ function getDayInfo(daysAgo = 0) {
       ? "today"
       : daysAgo === 1
       ? "yesterday"
-      : d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-  const dateLabel = d
-    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    .toLowerCase();
+      : d.toLocaleDateString("en-US", { weekday: "long" });
+  const dateLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return { iso, dateObj: d, dayIdx, dayName, dateLabel };
 }
 
@@ -368,10 +366,10 @@ export default {
     wrap.innerHTML = `
       <div class="quick-form" style="margin-bottom:0; align-items:center;">
         <input class="metro-input" id="choreInput_${sid}" placeholder="new chore..." autocomplete="off" />
-        <button class="catalog-icon-btn accent" style="width:38px; height:38px; background:var(--slot-accent, #FA6800); border-color:var(--slot-accent, #FA6800);" id="btnAddChore_${sid}" title="Add chore">+</button>
+        <button class="catalog-icon-btn accent" style="width:38px; height:38px; background:var(--slot-accent, #FA6800); border-color:var(--slot-accent, #FA6800); color:var(--slot-accent-fg, #FFFFFF);" id="btnAddChore_${sid}" title="Add chore">+</button>
       </div>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <span style="font-size:13px; color:var(--text-secondary); text-transform:lowercase;">repeating checklist item</span>
+        <span style="font-size:13px; color:var(--text-secondary);">repeating checklist item</span>
         <div class="metro-toggle ${isRepeating ? "on" : ""}" id="choreRepeatToggle_${sid}" role="switch" aria-checked="${isRepeating}" tabindex="0"></div>
       </div>
       <div class="weekday-picker" id="choreDaysPicker_${sid}" style="display:${isRepeating ? "flex" : "none"};"></div>
@@ -491,7 +489,7 @@ export default {
     const wrap = document.createElement("div");
     wrap.className = "chore-slot-wrap";
     wrap.innerHTML = `
-      <div class="sub-pivots" style="margin-bottom:10px; align-items:baseline;">
+      <div class="sub-pivots">
         <button type="button" class="pivot-tab ${ui.pivot === "checklist" ? "active" : ""}" data-pivot="checklist">
           checklist (${dueTodayRemaining})
         </button>
@@ -501,12 +499,12 @@ export default {
         <button type="button" class="pivot-tab ${ui.pivot === "history" ? "active" : ""}" data-pivot="history">
           history
         </button>
-        ${
-          ui.pivot === "one-off" && completedOneOffCount > 0
-            ? `<button type="button" class="slot-icon-btn" id="btnClearDoneOneOff_${sid}" style="margin-left:auto; font-size:12px;">clear done (${completedOneOffCount})</button>`
-            : ""
-        }
       </div>
+      ${
+        ui.pivot === "one-off" && completedOneOffCount > 0
+          ? `<div style="display:flex; justify-content:flex-end; margin:-4px 0 8px 0;"><button type="button" class="slot-icon-btn" id="btnClearDoneOneOff_${sid}" style="font-size:12px;">clear done (${completedOneOffCount})</button></div>`
+          : ""
+      }
       <div class="metro-list chore-scroll-list ${shouldAnimate ? "chore-pivot-animate" : ""}" id="choreList_${sid}" data-scroll-pane="chores-${sid}"></div>
     `;
 
@@ -586,7 +584,6 @@ export default {
         entries.forEach(({ chore, isDone }) => {
           const row = document.createElement("div");
           row.className = `metro-list-item chore-history-row ${isDone ? "is-done" : "is-undone"}`;
-          row.style.setProperty("--slot-accent", "var(--slot-accent, #FA6800)");
 
           const subLabel = isDone
             ? chore.repeating
@@ -651,7 +648,6 @@ export default {
 
       const row = document.createElement("div");
       row.className = "metro-list-item";
-      row.style.setProperty("--slot-accent", "var(--slot-accent, #FA6800)");
       if (shouldAnimate) {
         row.style.animationDelay = `${idx * 55}ms`;
       }
@@ -669,12 +665,12 @@ export default {
         row.innerHTML = `
           <input class="metro-input" data-edit="title" value="${escapeHtml(c.title)}" placeholder="chore title..." />
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-            <span style="font-size:12px; color:var(--text-secondary); text-transform:lowercase;">repeating checklist item</span>
+            <span style="font-size:12px; color:var(--text-secondary);">repeating checklist item</span>
             <div class="metro-toggle ${editRepeating ? "on" : ""}" data-edit="repeat-toggle" role="switch" aria-checked="${editRepeating}" tabindex="0"></div>
           </div>
           <div class="weekday-picker" data-edit="days-picker" style="display:${editRepeating ? "flex" : "none"};"></div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px;">
-            <button type="button" class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete">
+            <button type="button" class="metro-btn subtle" style="border-color:var(--danger-color, #A20025); color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete">
               delete
             </button>
             <div style="display:flex; gap:6px;">

@@ -1,0 +1,246 @@
+/*
+ * NeXTSTEP 3.3 Theme — Architectural 4-Shade Grayscale
+ * Classic black/charcoal window title bars, crisp 1px chiseled bevels,
+ * neutral light gray window planes (#D4D4D4), and functional workstation clarity.
+ */
+
+[data-theme-id="nextstep"] {
+  --font-display: "Helvetica Neue", "Helvetica", "Nimbus Sans", Arial, sans-serif;
+  --font-body: "Helvetica Neue", "Helvetica", Arial, sans-serif;
+  --font-mono: "Ohlfs", "Courier New", ui-monospace, monospace;
+
+  --title-size: 24px;
+  --title-weight: 700;
+  --title-tracking: -0.01em;
+  --slot-title-size: 15px;
+  --slot-title-weight: 700;
+  --card-title-weight: 700;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 22px;
+  --clock-weight: 700;
+  --date-size: 14px;
+  --date-weight: 600;
+  --header-height: 52px;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: uppercase;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --radius-slot: 0px;
+  --radius-card: 0px;
+  --radius-btn: 0px;
+  --radius-input: 0px;
+  --radius-pill: 0px;
+  --radius-checkbox: 0px;
+}
+
+[data-theme-id="nextstep"][data-theme="light"],
+[data-theme-id="nextstep"] {
+  --bg-canvas: #7c7c7c;
+  --bg-header: #c8c8c8;
+  --bg-surface: #cccccc;
+  --bg-surface-elevated: #e2e2e2;
+  --bg-tile: #d8d8d8;
+  --bg-tile-hover: #e8e8e8;
+  --bg-tile-subtle: #c4c4c4;
+  --bg-appbar: #b8b8b8;
+  --bg-input: #ffffff;
+  --bg-flyout: #d4d4d4;
+  --bg-backdrop: rgba(0, 0, 0, 0.42);
+  --bg-wireframe-overlay: rgba(200, 200, 200, 0.88);
+
+  --text-primary: #000000;
+  --text-secondary: #2b2b2b;
+  --text-muted: #4d4d4d;
+
+  --border-color: #777777;
+  --border-strong: #000000;
+
+  --danger-color: #8f2430;
+  --danger-text: #8f2430;
+  --success-color: #235c3a;
+  --warning-color: #8f5c00;
+  --info-color: #2b4e72;
+
+  --next-titlebar-bg: #111111;
+  --next-titlebar-fg: #ffffff;
+  --next-hi: #ffffff;
+  --next-lo: #555555;
+
+  --slot-border: 1px solid #000000;
+  --slot-border-top: 1px solid #000000;
+  --card-border: 1px solid #888888;
+  --header-border-bottom: 1px solid #000000;
+  --shadow-slot: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-card: none;
+  --shadow-flyout: -3px 0 0 #000000;
+
+  --scrollbar-track: #a6a6a6;
+  --scrollbar-thumb: #d8d8d8;
+  --scrollbar-thumb-hover: #ececec;
+}
+
+[data-theme-id="nextstep"][data-theme="dark"] {
+  --bg-canvas: #141414;
+  --bg-header: #262626;
+  --bg-surface: #222222;
+  --bg-surface-elevated: #2e2e2e;
+  --bg-tile: #262626;
+  --bg-tile-hover: #303030;
+  --bg-tile-subtle: #1c1c1c;
+  --bg-appbar: #1a1a1a;
+  --bg-input: #101010;
+  --bg-flyout: #222222;
+  --bg-backdrop: rgba(0, 0, 0, 0.65);
+  --bg-wireframe-overlay: rgba(26, 26, 26, 0.90);
+
+  --text-primary: #f2f2f2;
+  --text-secondary: #bfbfbf;
+  --text-muted: #8a8a8a;
+
+  --border-color: #4f4f4f;
+  --border-strong: #c2c2c2;
+
+  --danger-color: #d95c68;
+  --danger-text: #ff949e;
+  --success-color: #5cb87d;
+  --warning-color: #e6a844;
+  --info-color: #7ea6d9;
+
+  --next-titlebar-bg: #000000;
+  --next-titlebar-fg: #ffffff;
+  --next-hi: #424242;
+  --next-lo: #0a0a0a;
+
+  --slot-border: 1px solid #000000;
+  --slot-border-top: 1px solid #000000;
+  --card-border: 1px solid #3f3f3f;
+  --header-border-bottom: 1px solid #000000;
+  --shadow-slot: 2px 2px 0 rgba(0, 0, 0, 0.55);
+  --shadow-flyout: -3px 0 0 #000000;
+
+  --scrollbar-track: #141414;
+  --scrollbar-thumb: #3a3a3a;
+  --scrollbar-thumb-hover: #525252;
+}
+
+[data-theme-id="nextstep"] .panorama-header {
+  height: 52px;
+  padding: 6px 20px;
+  box-shadow: inset 0 1px 0 var(--next-hi), inset 0 -1px 0 var(--next-lo);
+}
+
+[data-theme-id="nextstep"] .panorama-title {
+  background: var(--next-titlebar-bg);
+  color: var(--next-titlebar-fg);
+  padding: 4px 14px;
+  font-size: 18px;
+  border: 1px solid #000000;
+}
+
+[data-theme-id="nextstep"] .metro-slot {
+  padding: 0 6px 6px 6px;
+  gap: 6px;
+  box-shadow: inset 1px 1px 0 var(--next-hi), inset -1px -1px 0 var(--next-lo), var(--shadow-slot);
+}
+
+/* Signature NeXTSTEP Black Window Title Bar */
+[data-theme-id="nextstep"] .slot-header {
+  margin: -1px -7px 2px -7px;
+  padding: 5px 10px;
+  min-height: 36px;
+  background: var(--next-titlebar-bg);
+  color: var(--next-titlebar-fg);
+  border: 1px solid #000000;
+  border-bottom: 2px solid var(--slot-accent, #555555);
+}
+
+[data-theme-id="nextstep"] .slot-title {
+  color: var(--next-titlebar-fg);
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme-id="nextstep"] .slot-header .metro-ellipsis-btn {
+  color: var(--next-titlebar-fg);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+[data-theme-id="nextstep"] .slot-body {
+  padding: 6px 4px;
+}
+
+[data-theme-id="nextstep"] .metro-btn {
+  background: var(--bg-tile);
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 var(--next-hi), inset -1px -1px 0 var(--next-lo);
+  font-weight: 600;
+}
+
+[data-theme-id="nextstep"] .metro-btn.accent {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: #000000;
+}
+
+[data-theme-id="nextstep"] .metro-input {
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.28);
+}
+
+[data-theme-id="nextstep"] .metro-checkbox {
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+[data-theme-id="nextstep"] .metro-list-item,
+[data-theme-id="nextstep"] .meal-card,
+[data-theme-id="nextstep"] .extension-card {
+  box-shadow: inset 1px 1px 0 var(--next-hi), inset -1px -1px 0 var(--next-lo);
+}
+
+[data-theme-id="nextstep"] .sub-pivots {
+  box-shadow: none;
+  gap: 5px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="nextstep"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 5px 6px;
+  background: var(--bg-tile-subtle);
+  border: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 var(--next-hi);
+}
+
+[data-theme-id="nextstep"] .settings-pivots .pivot-tab {
+  font-size: 14px;
+  padding: 6px 10px;
+}
+
+[data-theme-id="nextstep"] .pivot-tab.active {
+  background: var(--bg-tile-hover);
+  border-bottom-color: #000000;
+  box-shadow: inset 0 -2px 0 var(--slot-accent, var(--accent)), inset 1px 1px 0 var(--next-lo);
+}

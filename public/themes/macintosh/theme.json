@@ -1,0 +1,35 @@
+{
+  "id": "macintosh",
+  "name": "Macintosh OS 8",
+  "description": "Based on Macintosh Human Interface Guidelines (System 7.5 / Mac OS 8 Platinum) with pinstripe title bars and 3D beveled windows.",
+  "author": "Family Hub",
+  "order": 3,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#3366CC",
+  "accents": [
+    { "name": "Platinum Blue", "hex": "#3366CC" },
+    { "name": "Bondi Teal", "hex": "#007E8A" },
+    { "name": "Grape", "hex": "#663399" },
+    { "name": "Strawberry", "hex": "#CC3366" },
+    { "name": "Tangerine", "hex": "#D95B00" },
+    { "name": "Clover", "hex": "#2E7D32" }
+  ],
+  "extensionAccents": {
+    "calendar": "#3366CC",
+    "meals": "#CC3366",
+    "groceries": "#2E7D32",
+    "chores": "#D95B00",
+    "notes": "#663399",
+    "task-checklist": "#007E8A"
+  },
+  "metaThemeColor": {
+    "light": "#DDDDDD",
+    "dark": "#2B2E36"
+  },
+  "preview": {
+    "light": { "canvas": "#5B6F92", "tile": "#E4E4E4", "accent": "#3366CC" },
+    "dark": { "canvas": "#1F232B", "tile": "#2E333E", "accent": "#6699FF" }
+  }
+}

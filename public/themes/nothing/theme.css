@@ -1,0 +1,237 @@
+/*
+ * Nothing OS Theme — OLED Dot-Matrix Monochrome + Signature Red (#D71921)
+ * Dotted matrix hairline accents, modular 22px pill containers,
+ * high-contrast black & white typography with signature crimson indicators.
+ */
+
+@font-face {
+  font-family: "DotGothic16";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/dotgothic16-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Space Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/space-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Space Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/space-mono-700.woff2") format("woff2");
+}
+
+[data-theme-id="nothing"] {
+  --font-display: "DotGothic16", "Space Mono", "Courier New", ui-monospace, monospace;
+  --font-body: "Inter", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Space Mono", "DotGothic16", ui-monospace, monospace;
+
+  --title-size: 32px;
+  --title-weight: 700;
+  --title-tracking: 0.08em;
+  --slot-title-size: 20px;
+  --slot-title-weight: 700;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 34px;
+  --clock-weight: 700;
+  --date-size: 14px;
+  --date-weight: 500;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #000000;
+  --bg-canvas-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  --bg-header: rgba(0, 0, 0, 0.92);
+  --bg-surface: #121212;
+  --bg-surface-elevated: #1c1c1c;
+  --bg-tile: #101010;
+  --bg-tile-hover: #1b1b1b;
+  --bg-tile-subtle: #181818;
+  --bg-appbar: #161616;
+  --bg-input: #0a0a0a;
+  --bg-flyout: #0d0d0d;
+  --bg-backdrop: rgba(0, 0, 0, 0.72);
+  --bg-wireframe-overlay: rgba(0, 0, 0, 0.85);
+
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --border-color: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.36);
+
+  --danger-color: #d71921;
+  --danger-text: #ff5c63;
+  --success-color: #00d4aa;
+  --warning-color: #ff9500;
+  --info-color: #e4e4e7;
+
+  --radius-slot: 24px;
+  --radius-card: 16px;
+  --radius-btn: 9999px;
+  --radius-input: 16px;
+  --radius-pill: 9999px;
+  --radius-checkbox: 50%;
+
+  --shadow-slot: none;
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 32px rgba(0, 0, 0, 0.75);
+
+  --slot-border: 1px solid rgba(255, 255, 255, 0.16);
+  --slot-border-top: 1px solid rgba(255, 255, 255, 0.16);
+  --card-border: 1px solid rgba(255, 255, 255, 0.10);
+  --header-border-bottom: 1px dotted rgba(255, 255, 255, 0.25);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.24);
+  --scrollbar-thumb-hover: #d71921;
+}
+
+[data-theme-id="nothing"][data-theme="light"] {
+  --bg-canvas: #f2f2f2;
+  --bg-canvas-image: radial-gradient(rgba(0, 0, 0, 0.09) 1px, transparent 1px);
+  --bg-header: rgba(242, 242, 242, 0.94);
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #e8e8e8;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #f7f7f7;
+  --bg-tile-subtle: #ededed;
+  --bg-appbar: #e6e6e6;
+  --bg-input: #ffffff;
+  --bg-flyout: #f8f8f8;
+  --bg-backdrop: rgba(0, 0, 0, 0.35);
+  --bg-wireframe-overlay: rgba(242, 242, 242, 0.88);
+
+  --text-primary: #111111;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+
+  --border-color: rgba(0, 0, 0, 0.15);
+  --border-strong: rgba(0, 0, 0, 0.38);
+
+  --danger-color: #d71921;
+  --danger-text: #b81219;
+  --success-color: #008568;
+  --warning-color: #b86200;
+  --info-color: #18181b;
+
+  --slot-border: 1px solid rgba(0, 0, 0, 0.14);
+  --slot-border-top: 1px solid rgba(0, 0, 0, 0.14);
+  --card-border: 1px solid rgba(0, 0, 0, 0.09);
+  --header-border-bottom: 1px dotted rgba(0, 0, 0, 0.25);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb-hover: #d71921;
+}
+
+[data-theme-id="nothing"] body {
+  background-size: 20px 20px;
+}
+
+[data-theme-id="nothing"] .metro-slot {
+  padding: 16px;
+}
+
+[data-theme-id="nothing"] .slot-header {
+  border-bottom: 1.5px dotted var(--border-strong);
+  padding-bottom: 10px;
+}
+
+[data-theme-id="nothing"] .slot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme-id="nothing"] .slot-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--slot-accent, var(--accent));
+  flex-shrink: 0;
+}
+
+[data-theme-id="nothing"] .clock-time,
+[data-theme-id="nothing"] .clock-date {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="nothing"] .metro-btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  padding: 8px 16px;
+}
+
+[data-theme-id="nothing"] .metro-ellipsis-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px dotted var(--border-strong);
+}
+
+[data-theme-id="nothing"] .metro-ellipsis-btn.global-ellipsis {
+  width: 40px;
+  height: 40px;
+}
+
+[data-theme-id="nothing"] .metro-toggle {
+  border-radius: 9999px;
+  border: 1.5px dotted var(--border-strong);
+}
+
+[data-theme-id="nothing"] .metro-toggle::after {
+  border-radius: 50%;
+}
+
+[data-theme-id="nothing"] .sub-pivots {
+  box-shadow: none;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="nothing"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  padding: 5px 4px;
+  border: 1px dotted var(--border-color);
+  border-radius: 9999px;
+}
+
+[data-theme-id="nothing"] .settings-pivots .pivot-tab {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+}
+
+[data-theme-id="nothing"] .pivot-tab.active {
+  background: var(--text-primary);
+  color: var(--bg-canvas);
+  border-style: solid;
+  border-color: var(--text-primary);
+}

@@ -1,0 +1,34 @@
+{
+  "id": "bladerunner",
+  "name": "Blade Runner 2049",
+  "description": "Atmospheric 2049 cyberpunk HUD with sodium-amber and holographic cyan targeting brackets in dark obsidian or Vegas terracotta dust.",
+  "author": "Family Hub",
+  "order": 6,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#E8590C",
+  "accents": [
+    { "name": "Sodium Amber", "hex": "#E8590C" },
+    { "name": "Hologram Cyan", "hex": "#00E5FF" },
+    { "name": "Wallace Gold", "hex": "#E6A835" },
+    { "name": "Joi Magenta", "hex": "#FF2E7E" },
+    { "name": "Acid Phosphor", "hex": "#4CE08A" }
+  ],
+  "extensionAccents": {
+    "calendar": "#00E5FF",
+    "meals": "#E8590C",
+    "groceries": "#4CE08A",
+    "chores": "#E6A835",
+    "notes": "#FF2E7E",
+    "task-checklist": "#48A9FF"
+  },
+  "metaThemeColor": {
+    "dark": "#07090D",
+    "light": "#EDE2D3"
+  },
+  "preview": {
+    "dark": { "canvas": "#07090D", "tile": "#0E131B", "accent": "#E8590C" },
+    "light": { "canvas": "#EDE2D3", "tile": "#F7F0E6", "accent": "#B83D06" }
+  }
+}

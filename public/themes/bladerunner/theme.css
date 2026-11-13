@@ -1,0 +1,245 @@
+/*
+ * Blade Runner 2049 Theme — Baseline Terminal (Dark) & Vegas Dust Archive (Light)
+ * LAPD Spinner sodium-amber & holographic-cyan corner brackets, chamfered tactical buttons,
+ * tabular telemetry typography, and atmospheric vignette haze.
+ */
+
+@font-face {
+  font-family: "Rajdhani";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/rajdhani-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Rajdhani";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/rajdhani-700.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Share Tech Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/share-tech-mono-400.woff2") format("woff2");
+}
+
+[data-theme-id="bladerunner"] {
+  --font-display: "Rajdhani", "DIN Alternate", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Share Tech Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  --title-size: 36px;
+  --title-weight: 600;
+  --title-tracking: 0.12em;
+  --slot-title-size: 22px;
+  --slot-title-weight: 600;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0.01em;
+
+  --clock-size: 36px;
+  --clock-weight: 500;
+  --date-size: 16px;
+  --date-weight: 500;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #07090d;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 50% at 18% 12%, rgba(255, 106, 26, 0.13) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 55% at 86% 85%, rgba(0, 229, 255, 0.09) 0%, transparent 65%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  --bg-header: rgba(9, 13, 19, 0.86);
+  --bg-surface: #0e141d;
+  --bg-surface-elevated: #16202e;
+  --bg-tile: rgba(14, 19, 27, 0.88);
+  --bg-tile-hover: rgba(24, 34, 48, 0.95);
+  --bg-tile-subtle: rgba(255, 255, 255, 0.035);
+  --bg-appbar: #0c1118;
+  --bg-input: rgba(6, 9, 14, 0.90);
+  --bg-flyout: rgba(10, 14, 21, 0.96);
+  --bg-backdrop: rgba(2, 4, 8, 0.72);
+  --bg-wireframe-overlay: rgba(7, 9, 13, 0.86);
+
+  --text-primary: #eef2f7;
+  --text-secondary: #a8b7c9;
+  --text-muted: #708299;
+
+  --border-color: rgba(130, 165, 200, 0.22);
+  --border-strong: rgba(255, 140, 66, 0.55);
+
+  --danger-color: #ff2e63;
+  --danger-text: #ff7096;
+  --success-color: #4ce08a;
+  --warning-color: #ff6a1a;
+  --info-color: #00e5ff;
+
+  --radius-slot: 2px;
+  --radius-card: 2px;
+  --radius-btn: 0px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-checkbox: 2px;
+
+  --shadow-slot: 0 8px 30px rgba(0, 0, 0, 0.55);
+  --shadow-card: none;
+  --shadow-flyout: -10px 0 36px rgba(0, 0, 0, 0.75);
+
+  --slot-border: 1px solid rgba(255, 255, 255, 0.12);
+  --slot-border-top: 1px solid rgba(255, 255, 255, 0.12);
+  --card-border: 1px solid rgba(255, 255, 255, 0.08);
+  --header-border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 45%, rgba(255, 255, 255, 0.15));
+  --scrollbar-thumb-hover: var(--accent);
+}
+
+/* Las Vegas Terracotta Dust Light Variant */
+[data-theme-id="bladerunner"][data-theme="light"] {
+  --bg-canvas: #ebe0cf;
+  --bg-canvas-image:
+    radial-gradient(ellipse 75% 65% at 25% 15%, rgba(214, 96, 36, 0.16) 0%, transparent 65%),
+    radial-gradient(ellipse 65% 60% at 85% 85%, rgba(168, 120, 48, 0.14) 0%, transparent 65%);
+  --bg-header: rgba(242, 232, 217, 0.90);
+  --bg-surface: #f5ede0;
+  --bg-surface-elevated: #fcf7ee;
+  --bg-tile: rgba(249, 243, 233, 0.90);
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: rgba(110, 68, 35, 0.06);
+  --bg-appbar: #e5d6c1;
+  --bg-input: #fffaf2;
+  --bg-flyout: #f5ede0;
+  --bg-backdrop: rgba(45, 24, 12, 0.38);
+  --bg-wireframe-overlay: rgba(235, 224, 207, 0.88);
+
+  --text-primary: #1d1510;
+  --text-secondary: #543f32;
+  --text-muted: #7a6152;
+
+  --border-color: rgba(110, 66, 35, 0.24);
+  --border-strong: rgba(160, 62, 16, 0.60);
+
+  --danger-color: #b81d43;
+  --danger-text: #a11437;
+  --success-color: #187a43;
+  --warning-color: #b84406;
+  --info-color: #006b80;
+
+  --shadow-slot: 0 6px 20px rgba(85, 45, 18, 0.10);
+  --shadow-flyout: -10px 0 32px rgba(60, 32, 12, 0.18);
+
+  --slot-border: 1px solid rgba(120, 72, 36, 0.22);
+  --slot-border-top: 1px solid rgba(120, 72, 36, 0.22);
+  --card-border: 1px solid rgba(120, 72, 36, 0.15);
+  --header-border-bottom: 1px solid rgba(160, 62, 16, 0.40);
+
+  --scrollbar-thumb: rgba(140, 78, 38, 0.35);
+  --scrollbar-thumb-hover: rgba(140, 78, 38, 0.65);
+}
+
+[data-theme-id="bladerunner"] .clock-time,
+[data-theme-id="bladerunner"] .clock-date,
+[data-theme-id="bladerunner"] .hour-label,
+[data-theme-id="bladerunner"] .ev-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="bladerunner"] .panorama-title {
+  letter-spacing: 0.10em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Luminous HUD Corner Brackets via non-blocking background-gradients */
+[data-theme-id="bladerunner"] .metro-slot {
+  padding: 14px 16px;
+  background-color: var(--bg-tile);
+  background-image:
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent)));
+  background-repeat: no-repeat;
+  background-size:
+    16px 2px, 2px 16px,
+    16px 2px, 2px 16px,
+    16px 2px, 2px 16px,
+    16px 2px, 2px 16px;
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+}
+
+[data-theme-id="bladerunner"] .slot-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--slot-accent, var(--accent)) 35%, transparent);
+  padding-bottom: 8px;
+}
+
+[data-theme-id="bladerunner"] .slot-title {
+  letter-spacing: 0.08em;
+  color: var(--slot-accent-text, var(--text-primary));
+}
+
+[data-theme-id="bladerunner"] .metro-btn {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  padding: 7px 16px;
+}
+
+[data-theme-id="bladerunner"] .metro-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme-id="bladerunner"] .sub-pivots {
+  background: transparent;
+  gap: 14px;
+}
+
+[data-theme-id="bladerunner"] .pivot-tab {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 6px 4px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="bladerunner"] .settings-pivots .pivot-tab {
+  font-size: 17px;
+  letter-spacing: 0.06em;
+}
+
+[data-theme-id="bladerunner"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--accent-text));
+  border-bottom-color: var(--slot-accent, var(--accent));
+}
+
+[data-theme-id="bladerunner"] .metro-checkbox {
+  border-color: color-mix(in srgb, var(--slot-accent, var(--accent)) 65%, var(--border-strong));
+}

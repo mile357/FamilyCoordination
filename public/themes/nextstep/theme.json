@@ -1,0 +1,34 @@
+{
+  "id": "nextstep",
+  "name": "NeXTSTEP",
+  "description": "NeXTSTEP 3.3 architectural 4-shade grayscale workstation aesthetic with chiseled bevels and signature black window title bars.",
+  "author": "Family Hub",
+  "order": 10,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#2B2B2B",
+  "accents": [
+    { "name": "NeXT Charcoal", "hex": "#2B2B2B" },
+    { "name": "Workstation Slate", "hex": "#4A607A" },
+    { "name": "NeXT Cube Teal", "hex": "#2F6F73" },
+    { "name": "NeXT Ochre", "hex": "#9C6B19" },
+    { "name": "Drafting Ruby", "hex": "#8F2430" }
+  ],
+  "extensionAccents": {
+    "calendar": "#4A607A",
+    "meals": "#8F2430",
+    "groceries": "#2F6F73",
+    "chores": "#9C6B19",
+    "notes": "#555555",
+    "task-checklist": "#2B2B2B"
+  },
+  "metaThemeColor": {
+    "light": "#B8B8B8",
+    "dark": "#161616"
+  },
+  "preview": {
+    "light": { "canvas": "#888888", "tile": "#D6D6D6", "accent": "#2B2B2B" },
+    "dark": { "canvas": "#141414", "tile": "#262626", "accent": "#8C8C8C" }
+  }
+}

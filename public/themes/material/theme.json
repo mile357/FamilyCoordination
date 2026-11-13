@@ -1,0 +1,36 @@
+{
+  "id": "material",
+  "name": "Material You",
+  "description": "Google Material Design 3 with tonal container elevation, expressive pill controls, and dynamic color harmony.",
+  "author": "Family Hub",
+  "order": 4,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#A8C7FA",
+  "accents": [
+    { "name": "Google Blue", "hex": "#4285F4" },
+    { "name": "Material Blue", "hex": "#A8C7FA" },
+    { "name": "Sage Green", "hex": "#6DD58C" },
+    { "name": "Orchid Purple", "hex": "#D0BCFF" },
+    { "name": "Coral Rose", "hex": "#F2B8B5" },
+    { "name": "Marigold", "hex": "#FCC934" },
+    { "name": "Deep Indigo", "hex": "#3B5BA9" }
+  ],
+  "extensionAccents": {
+    "calendar": "#4285F4",
+    "meals": "#E91E63",
+    "groceries": "#34A853",
+    "chores": "#FB8C00",
+    "notes": "#8E24AA",
+    "task-checklist": "#00ACC1"
+  },
+  "metaThemeColor": {
+    "dark": "#111318",
+    "light": "#F8F9FF"
+  },
+  "preview": {
+    "dark": { "canvas": "#111318", "tile": "#1D2026", "accent": "#A8C7FA" },
+    "light": { "canvas": "#F8F9FF", "tile": "#FFFFFF", "accent": "#3B5BA9" }
+  }
+}

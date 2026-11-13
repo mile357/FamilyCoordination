@@ -44,12 +44,15 @@ def get_initial_state():
     """
     Core host shell state. Individual extension metadata, default columns,
     and seed data live inside each self-contained module in `public/extensions/*.js`.
+    Themes live inside self-contained folders in `public/themes/<theme-id>/`.
     """
     return {
         "settings": {
             "familyName": "family hub",
             "accentColor": "#00ABA9",  # Metro Teal
             "theme": "dark",
+            "themeId": "metro",
+            "themeAccents": {},
             "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
             "kioskMode": False,
             "keepScreenAwake": True,
@@ -57,6 +60,127 @@ def get_initial_state():
         "extensions": {},
         "columns": [],
     }
+
+
+def _is_valid_hex_color(val):
+    return isinstance(val, str) and bool(re.match(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", val.strip()))
+
+
+def _sanitize_theme_id(raw_id, fallback="metro"):
+    if not isinstance(raw_id, str):
+        return fallback
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]", "", raw_id.strip())
+    return cleaned or fallback
+
+
+def discover_themes():
+    """
+    Discover drop-in theme folders inside `public/themes/<folder>/`.
+    Each valid theme folder contains a `theme.json` manifest and a stylesheet (default `theme.css`).
+    Folders starting with `_` or `.` are ignored.
+    """
+    themes_dir = os.path.join(PUBLIC_DIR, "themes")
+    found = []
+    if not os.path.isdir(themes_dir):
+        return found
+
+    for folder in sorted(os.listdir(themes_dir)):
+        if folder.startswith(("_", ".")):
+            continue
+        folder_path = os.path.join(themes_dir, folder)
+        if not os.path.isdir(folder_path):
+            continue
+        manifest_path = os.path.join(folder_path, "theme.json")
+        if not os.path.isfile(manifest_path):
+            continue
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as fh:
+                manifest = json.load(fh)
+            if not isinstance(manifest, dict):
+                continue
+            theme_id = _sanitize_theme_id(manifest.get("id") or folder, "")
+            if not theme_id:
+                continue
+            rel_css = str(manifest.get("stylesheet") or "theme.css").strip().lstrip("/")
+            if not rel_css or ".." in rel_css.split("/"):
+                continue
+            css_full_path = os.path.realpath(os.path.join(folder_path, rel_css))
+            real_folder_path = os.path.realpath(folder_path)
+            if not css_full_path.startswith(real_folder_path + os.sep):
+                continue
+            if not os.path.isfile(css_full_path):
+                continue
+
+            raw_modes = manifest.get("modes")
+            if isinstance(raw_modes, list):
+                modes = [m for m in raw_modes if m in ("dark", "light")]
+            else:
+                modes = []
+            if not modes:
+                modes = ["dark", "light"]
+
+            default_mode = manifest.get("defaultMode")
+            if default_mode not in modes:
+                default_mode = modes[0]
+
+            accents = []
+            for item in manifest.get("accents") or []:
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get("name"), str)
+                    and _is_valid_hex_color(item.get("hex"))
+                ):
+                    accents.append({"name": item["name"].strip(), "hex": item["hex"].strip()})
+
+            default_accent = (
+                manifest.get("defaultAccent").strip()
+                if _is_valid_hex_color(manifest.get("defaultAccent"))
+                else (accents[0]["hex"] if accents else "#00ABA9")
+            )
+
+            ext_accents = {}
+            if isinstance(manifest.get("extensionAccents"), dict):
+                for ext_id, hex_val in manifest["extensionAccents"].items():
+                    if isinstance(ext_id, str) and _is_valid_hex_color(hex_val):
+                        ext_accents[ext_id.strip()] = hex_val.strip()
+
+            meta_colors = {}
+            if isinstance(manifest.get("metaThemeColor"), dict):
+                for m_key, hex_val in manifest["metaThemeColor"].items():
+                    if m_key in ("dark", "light") and _is_valid_hex_color(hex_val):
+                        meta_colors[m_key] = hex_val.strip()
+
+            preview = manifest.get("preview") if isinstance(manifest.get("preview"), dict) else {}
+
+            try:
+                order_val = int(manifest.get("order", 100))
+            except (TypeError, ValueError):
+                order_val = 100
+
+            found.append(
+                {
+                    "id": theme_id,
+                    "folder": folder,
+                    "name": str(manifest.get("name") or theme_id).strip(),
+                    "description": str(manifest.get("description") or "").strip(),
+                    "author": str(manifest.get("author") or "").strip(),
+                    "order": order_val,
+                    "modes": modes,
+                    "defaultMode": default_mode,
+                    "defaultAccent": default_accent,
+                    "accents": accents,
+                    "extensionAccents": ext_accents,
+                    "metaThemeColor": meta_colors,
+                    "preview": preview,
+                    "baseUrl": f"/themes/{folder}",
+                    "stylesheetUrl": f"/themes/{folder}/{rel_css}",
+                }
+            )
+        except Exception:
+            continue
+
+    found.sort(key=lambda t: (t.get("order", 100), t.get("id", "")))
+    return found
 
 
 @contextlib.contextmanager
@@ -141,7 +265,24 @@ def _validate_and_normalize_state(payload):
             raise ValueError("Field 'settings' must be an object")
         merged_settings = copy.deepcopy(defaults)
         for k, v in payload["settings"].items():
-            if k in defaults:
+            if k == "theme":
+                if isinstance(v, str) and v.strip() in ("dark", "light"):
+                    merged_settings["theme"] = v.strip()
+            elif k == "themeId":
+                if isinstance(v, str) and v.strip():
+                    merged_settings["themeId"] = _sanitize_theme_id(v, defaults["themeId"])
+            elif k == "accentColor":
+                if _is_valid_hex_color(v):
+                    merged_settings["accentColor"] = v.strip()
+            elif k == "themeAccents":
+                if isinstance(v, dict):
+                    clean_accents = {}
+                    for tid, hex_val in v.items():
+                        clean_tid = _sanitize_theme_id(tid, "")
+                        if clean_tid and _is_valid_hex_color(hex_val):
+                            clean_accents[clean_tid] = hex_val.strip()
+                    merged_settings["themeAccents"] = clean_accents
+            elif k in defaults:
                 if isinstance(defaults[k], bool):
                     if isinstance(v, bool):
                         merged_settings[k] = v
@@ -1110,8 +1251,16 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         **SimpleHTTPRequestHandler.extensions_map,
         ".webmanifest": "application/manifest+json",
         ".json": "application/json",
+        ".css": "text/css; charset=utf-8",
         ".svg": "image/svg+xml",
         ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+        ".otf": "font/otf",
         ".js": "application/javascript",
     }
 
@@ -1300,6 +1449,10 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                     if fname.endswith(".js") and not fname.startswith(("_", ".")):
                         found.append(fname)
             self._send_json({"ok": True, "files": found})
+            return
+
+        if parsed.path == "/api/themes":
+            self._send_json({"ok": True, "themes": discover_themes()})
             return
 
         if parsed.path == "/api/state":

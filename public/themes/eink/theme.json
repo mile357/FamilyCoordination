@@ -1,0 +1,34 @@
+{
+  "id": "eink",
+  "name": "E-Ink Paper",
+  "description": "Zero-glare paper planner aesthetic with editorial serif headlines, crisp fountain-pen rules, and maximum daylight legibility.",
+  "author": "Family Hub",
+  "order": 8,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#1B3B6F",
+  "accents": [
+    { "name": "Fountain Navy", "hex": "#1B3B6F" },
+    { "name": "Graphite Ink", "hex": "#222220" },
+    { "name": "Editorial Crimson", "hex": "#8B1E2B" },
+    { "name": "Forest Ink", "hex": "#1D5632" },
+    { "name": "Sepia Ochre", "hex": "#854D14" }
+  ],
+  "extensionAccents": {
+    "calendar": "#1B3B6F",
+    "meals": "#8B1E2B",
+    "groceries": "#1D5632",
+    "chores": "#854D14",
+    "notes": "#4A3267",
+    "task-checklist": "#222220"
+  },
+  "metaThemeColor": {
+    "light": "#F4F1EA",
+    "dark": "#1B1915"
+  },
+  "preview": {
+    "light": { "canvas": "#F4F1EA", "tile": "#FAF8F3", "accent": "#1B3B6F" },
+    "dark": { "canvas": "#1B1915", "tile": "#24211C", "accent": "#E6C79C" }
+  }
+}

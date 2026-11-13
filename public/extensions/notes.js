@@ -51,7 +51,7 @@ export default {
     wrap.innerHTML = `
       <input class="metro-input" id="noteTitle_${sid}" placeholder="heading..." style="max-width:120px" />
       <input class="metro-input" id="noteBody_${sid}" placeholder="note text..." />
-      <button class="metro-btn accent" style="--accent:#6A00FF; --accent-fg:#FFFFFF" id="btnAddNote_${sid}">pin</button>
+      <button class="metro-btn accent" style="--accent:var(--slot-accent, #6A00FF); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnAddNote_${sid}">pin</button>
     `;
 
     const tIn = wrap.querySelector(`#noteTitle_${selId}`);
@@ -63,7 +63,7 @@ export default {
       if (!Array.isArray(appState.notes)) appState.notes = [];
       appState.notes.unshift({
         id: "note-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-        title: title.toLowerCase(),
+        title,
         body,
       });
       closeDrawer();
@@ -124,7 +124,7 @@ export default {
           <input class="metro-input" data-edit="title" value="${escapeHtml(n.title)}" placeholder="heading..." />
           <input class="metro-input" data-edit="body" value="${escapeHtml(n.body)}" placeholder="note text..." />
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px;">
-            <button type="button" class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete">
+            <button type="button" class="metro-btn subtle" style="border-color:var(--danger-color, #A20025); color:var(--danger-text, #FF6B8B); padding:4px 10px; font-size:12px;" data-action="delete">
               delete
             </button>
             <div style="display:flex; gap:6px;">
@@ -142,7 +142,7 @@ export default {
         const editBodyEl = card.querySelector('[data-edit="body"]');
 
         const commitNoteEdit = () => {
-          const newTitle = (editTitleEl.value.trim() || "note").toLowerCase();
+          const newTitle = editTitleEl.value.trim() || "note";
           const newBody = editBodyEl.value.trim();
           if (!newBody) return;
           n.title = newTitle;
@@ -184,7 +184,7 @@ export default {
 
       card.innerHTML = `
         <div class="meal-card-top">
-          <div style="font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--note-accent-text, #B57CFF);">
+          <div style="font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--slot-accent-text, var(--note-accent-text, #B57CFF));">
             ${escapeHtml(n.title)}
           </div>
           <button type="button" class="catalog-icon-btn" data-action="edit" title="Edit or delete note">✎</button>

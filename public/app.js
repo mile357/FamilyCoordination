@@ -9,12 +9,15 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "38";
+const ASSET_VERSION = "40";
+const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
   familyName: "family hub",
   accentColor: "#00ABA9",
   theme: "dark",
+  themeId: "metro",
+  themeAccents: {},
   zipCode: "98052",
   kioskMode: false,
   keepScreenAwake: true,
@@ -40,6 +43,35 @@ const METRO_ACCENTS = [
   { name: "Amber", hex: "#F0A30A" },
 ];
 
+const THEME_CACHE_KEY = "hub_active_theme_cache_v1";
+
+const FALLBACK_THEMES = [
+  {
+    id: "metro",
+    name: "Metro",
+    description: "Classic Windows Phone 8 / Metro typography with crisp edge-to-edge tiles.",
+    order: 1,
+    modes: ["dark", "light"],
+    defaultMode: "dark",
+    defaultAccent: "#00ABA9",
+    accents: METRO_ACCENTS,
+    extensionAccents: {
+      calendar: "#00ABA9",
+      meals: "#A20025",
+      groceries: "#60A917",
+      chores: "#FA6800",
+      notes: "#6A00FF",
+      "task-checklist": "#0050EF",
+    },
+    metaThemeColor: { dark: "#000000", light: "#FFFFFF" },
+    preview: {
+      dark: { canvas: "#000000", tile: "#111111", accent: "#00ABA9" },
+      light: { canvas: "#FFFFFF", tile: "#F3F3F3", accent: "#00ABA9" },
+    },
+    stylesheetUrl: "/themes/metro/theme.css",
+  },
+];
+
 const FALLBACK_EXTENSION_FILES = [
   "calendar.js",
   "meals.js",
@@ -47,6 +79,36 @@ const FALLBACK_EXTENSION_FILES = [
   "chores.js",
   "notes.js",
 ];
+
+// ============================================================================
+// THEME REGISTRY & AUTO-DISCOVERY LOADER (`public/themes/*/theme.json`)
+// ============================================================================
+const ThemeRegistry = new Map();
+
+async function discoverAndLoadThemes() {
+  let themes = null;
+  try {
+    const res = await fetch("/api/themes");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.themes) && data.themes.length > 0) {
+        themes = data.themes;
+      }
+    }
+  } catch (e) {
+    // Fallback if offline
+  }
+  if (!themes) themes = FALLBACK_THEMES;
+  ThemeRegistry.clear();
+  for (const def of themes) {
+    if (def && def.id) {
+      ThemeRegistry.set(def.id, def);
+    }
+  }
+  if (!ThemeRegistry.has("metro")) {
+    ThemeRegistry.set("metro", FALLBACK_THEMES[0]);
+  }
+}
 
 // ============================================================================
 // EXTENSION REGISTRY & AUTO-DISCOVERY LOADER (`public/extensions/*.js`)
@@ -235,10 +297,21 @@ function syncExtensionsWithAppState() {
   let didMutate = false;
 
   if (!appState.settings || typeof appState.settings !== "object" || Array.isArray(appState.settings)) {
-    appState.settings = { ...DEFAULT_SETTINGS };
+    appState.settings = { ...DEFAULT_SETTINGS, themeAccents: {} };
     didMutate = true;
   } else {
     for (const [k, defVal] of Object.entries(DEFAULT_SETTINGS)) {
+      if (k === "themeAccents") {
+        if (
+          !appState.settings.themeAccents ||
+          typeof appState.settings.themeAccents !== "object" ||
+          Array.isArray(appState.settings.themeAccents)
+        ) {
+          appState.settings.themeAccents = {};
+          didMutate = true;
+        }
+        continue;
+      }
       if (typeof appState.settings[k] !== typeof defVal || (typeof defVal === "string" && !appState.settings[k])) {
         appState.settings[k] = defVal;
         didMutate = true;
@@ -502,6 +575,8 @@ function createExtensionContext(slotConfig, colConfig) {
     showToast,
     escapeHtml,
     sanitizeColor,
+    getContrastColor,
+    getReadableAccentColor: (hexColor) => ensureReadableOnSurface(hexColor, getEffectiveSurfaceHex()),
     formatTimeShort,
     emit: emitExtensionEvent,
     canHandle: canHandleExtensionEvent,
@@ -617,7 +692,7 @@ function isUserInteracting() {
 // API & STATE PERSISTENCE (SQLite Backend + Optimistic Concurrency + Sync)
 // ============================================================================
 async function loadState() {
-  await discoverAndLoadExtensions();
+  await Promise.all([discoverAndLoadThemes(), discoverAndLoadExtensions()]);
 
   try {
     const res = await fetch("/api/state");
@@ -965,8 +1040,8 @@ function sanitizeColor(val, fallback = "#00ABA9") {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(str) ? str : fallback;
 }
 
-function getContrastColor(hexColor) {
-  const clean = sanitizeColor(hexColor, "#00ABA9").slice(1);
+function parseHexColor(hexColor, fallback = "#00ABA9") {
+  const clean = sanitizeColor(hexColor, fallback).slice(1);
   const full =
     clean.length === 3
       ? clean
@@ -977,21 +1052,218 @@ function getContrastColor(hexColor) {
   const r = parseInt(full.slice(0, 2), 16);
   const g = parseInt(full.slice(2, 4), 16);
   const b = parseInt(full.slice(4, 6), 16);
+  return { r, g, b, hex: `#${full.toUpperCase()}` };
+}
+
+function parseCssColorToHex(rawColor, fallback = "#000000") {
+  const str = String(rawColor || "").trim();
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(str)) {
+    return parseHexColor(str, fallback).hex;
+  }
+  const match = str.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (match) {
+    const toHex = (n) => Math.max(0, Math.min(255, Math.round(Number(n)))).toString(16).padStart(2, "0");
+    return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`.toUpperCase();
+  }
+  return parseHexColor(fallback, "#000000").hex;
+}
+
+function relativeLuminance(hexColor) {
+  const { r, g, b } = parseHexColor(hexColor, "#00ABA9");
+  const toLin = (c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+}
+
+function contrastRatio(hexA, hexB) {
+  const lumA = relativeLuminance(hexA);
+  const lumB = relativeLuminance(hexB);
+  const lighter = Math.max(lumA, lumB);
+  const darker = Math.min(lumA, lumB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function mixHexColors(hexA, hexB, amount) {
+  const a = parseHexColor(hexA, "#000000");
+  const b = parseHexColor(hexB, "#FFFFFF");
+  const t = Math.max(0, Math.min(1, Number(amount) || 0));
+  const ch = (x, y) => Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
+  return `#${ch(a.r, b.r)}${ch(a.g, b.g)}${ch(a.b, b.b)}`.toUpperCase();
+}
+
+function getContrastColor(hexColor) {
+  const { r, g, b, hex } = parseHexColor(hexColor, "#00ABA9");
   const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 155 ? "#000000" : "#FFFFFF";
+  const whiteContrast = contrastRatio(hex, "#FFFFFF");
+  return whiteContrast >= 2.8 && yiq < 155 ? "#FFFFFF" : "#000000";
+}
+
+function ensureReadableOnSurface(fgHex, bgHex, minRatio = 4.5) {
+  const fg = parseHexColor(fgHex, "#00ABA9").hex;
+  const bg = parseHexColor(bgHex, "#000000").hex;
+  if (contrastRatio(fg, bg) >= minRatio) return fg;
+  const target = contrastRatio("#FFFFFF", bg) >= contrastRatio("#000000", bg) ? "#FFFFFF" : "#000000";
+  let low = 0;
+  let high = 1;
+  let best = target;
+  for (let i = 0; i < 12; i++) {
+    const mid = (low + high) / 2;
+    const candidate = mixHexColors(fg, target, mid);
+    if (contrastRatio(candidate, bg) >= minRatio) {
+      best = candidate;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return best;
+}
+
+function getActiveThemeDef() {
+  const id = (appState && appState.settings && appState.settings.themeId) || "metro";
+  return ThemeRegistry.get(id) || ThemeRegistry.get("metro") || FALLBACK_THEMES[0];
+}
+
+function getEffectiveThemeMode(themeDef = getActiveThemeDef()) {
+  const allowed = Array.isArray(themeDef.modes) && themeDef.modes.length > 0 ? themeDef.modes : ["dark", "light"];
+  const current = appState && appState.settings && appState.settings.theme;
+  if (allowed.includes(current)) return current;
+  return themeDef.defaultMode && allowed.includes(themeDef.defaultMode) ? themeDef.defaultMode : allowed[0];
+}
+
+function getThemeAccents(themeDef = getActiveThemeDef()) {
+  return Array.isArray(themeDef.accents) && themeDef.accents.length > 0 ? themeDef.accents : METRO_ACCENTS;
+}
+
+function getEffectiveThemeAccent(themeDef = getActiveThemeDef()) {
+  const raw = appState && appState.settings && appState.settings.accentColor;
+  return sanitizeColor(raw, sanitizeColor(themeDef.defaultAccent, "#00ABA9"));
+}
+
+function getExtensionSlotAccent(extId, fallbackAccent) {
+  const themeDef = getActiveThemeDef();
+  const themeExtColor = themeDef.extensionAccents && themeDef.extensionAccents[extId];
+  if (themeExtColor) return sanitizeColor(themeExtColor, "#00ABA9");
+  return sanitizeColor(fallbackAccent, sanitizeColor(themeDef.defaultAccent, "#00ABA9"));
+}
+
+function getEffectiveSurfaceHex(themeDef = getActiveThemeDef(), mode = getEffectiveThemeMode(themeDef)) {
+  const previewSurface =
+    (themeDef.preview && themeDef.preview[mode] && (themeDef.preview[mode].tile || themeDef.preview[mode].canvas)) ||
+    null;
+  const activeLink = document.getElementById("activeThemeStylesheet");
+  const expectedPrefix = themeDef.stylesheetUrl || "";
+  const linkMatches =
+    !expectedPrefix ||
+    (activeLink && String(activeLink.getAttribute("href") || "").startsWith(expectedPrefix));
+  if (linkMatches && typeof getComputedStyle === "function") {
+    const cs = getComputedStyle(document.documentElement);
+    const tileVar = cs.getPropertyValue("--bg-tile").trim() || cs.getPropertyValue("--bg-canvas").trim();
+    if (tileVar && !tileVar.startsWith("color-mix")) {
+      return parseCssColorToHex(tileVar, previewSurface || (mode === "light" ? "#FFFFFF" : "#000000"));
+    }
+  }
+  return sanitizeColor(previewSurface, mode === "light" ? "#FFFFFF" : "#000000");
+}
+
+function updateAccentContrastTokens() {
+  if (!appState) return;
+  const themeDef = getActiveThemeDef();
+  const mode = getEffectiveThemeMode(themeDef);
+  const accentHex = getEffectiveThemeAccent(themeDef);
+  const surfaceHex = getEffectiveSurfaceHex(themeDef, mode);
+  document.documentElement.style.setProperty("--accent-text", ensureReadableOnSurface(accentHex, surfaceHex));
+  document.querySelectorAll(".metro-slot[data-extension-id]").forEach((slotEl) => {
+    const rawSlotAccent = slotEl.style.getPropertyValue("--slot-accent").trim();
+    if (rawSlotAccent) {
+      slotEl.style.setProperty("--slot-accent-text", ensureReadableOnSurface(rawSlotAccent, surfaceHex));
+    }
+  });
+}
+
+function selectTheme(themeId) {
+  const nextDef = ThemeRegistry.get(themeId) || getActiveThemeDef();
+  if (!appState.settings || typeof appState.settings !== "object") {
+    appState.settings = { ...DEFAULT_SETTINGS, themeAccents: {} };
+  }
+  if (!appState.settings.themeAccents || typeof appState.settings.themeAccents !== "object" || Array.isArray(appState.settings.themeAccents)) {
+    appState.settings.themeAccents = {};
+  }
+  const prevId = appState.settings.themeId || "metro";
+  if (appState.settings.accentColor) {
+    appState.settings.themeAccents[prevId] = sanitizeColor(appState.settings.accentColor);
+  }
+  appState.settings.themeId = nextDef.id;
+  const allowedModes = Array.isArray(nextDef.modes) && nextDef.modes.length > 0 ? nextDef.modes : ["dark", "light"];
+  if (!allowedModes.includes(appState.settings.theme)) {
+    appState.settings.theme = nextDef.defaultMode && allowedModes.includes(nextDef.defaultMode) ? nextDef.defaultMode : allowedModes[0];
+  }
+  const savedThemeAccent = appState.settings.themeAccents[nextDef.id];
+  appState.settings.accentColor = sanitizeColor(savedThemeAccent, sanitizeColor(nextDef.defaultAccent, "#00ABA9"));
+  applyThemeAndAccent();
+  renderAll();
+  if (uiState.flyoutMode === "settings") {
+    renderFlyoutContent();
+  }
+  saveState(`Switched theme to ${nextDef.name}`);
 }
 
 function applyThemeAndAccent() {
   if (!appState) return;
-  const accentHex = sanitizeColor(appState.settings.accentColor, "#00ABA9");
-  const theme = appState.settings.theme || "dark";
-  document.documentElement.setAttribute("data-theme", theme);
+  const themeDef = getActiveThemeDef();
+  const mode = getEffectiveThemeMode(themeDef);
+  const accentHex = getEffectiveThemeAccent(themeDef);
+  const surfaceHex = getEffectiveSurfaceHex(themeDef, mode);
+
+  document.documentElement.setAttribute("data-theme-id", themeDef.id);
+  document.documentElement.setAttribute("data-theme", mode);
   document.documentElement.style.setProperty("--accent", accentHex);
   document.documentElement.style.setProperty("--accent-fg", getContrastColor(accentHex));
+  document.documentElement.style.setProperty("--accent-text", ensureReadableOnSurface(accentHex, surfaceHex));
+
+  const targetHref = themeDef.stylesheetUrl ? `${themeDef.stylesheetUrl}?v=${ASSET_VERSION}` : "";
+  let link = document.getElementById("activeThemeStylesheet");
+  if (targetHref && /^\/themes\/[a-zA-Z0-9._\/-]+\.css\?v=/.test(targetHref)) {
+    if (!link) {
+      link = document.createElement("link");
+      link.id = "activeThemeStylesheet";
+      link.rel = "stylesheet";
+      document.head.appendChild(link);
+    }
+    if (link.getAttribute("href") !== targetHref) {
+      link.onload = () => updateAccentContrastTokens();
+      link.setAttribute("href", targetHref);
+    }
+  } else if (link) {
+    link.remove();
+  }
+
   const titleEl = document.getElementById("hubTitle");
   if (titleEl) titleEl.textContent = appState.settings.familyName || "family hub";
+
+  const metaColor =
+    (themeDef.metaThemeColor && themeDef.metaThemeColor[mode]) ||
+    (mode === "light" ? "#FFFFFF" : "#000000");
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.setAttribute("content", theme === "light" ? "#FFFFFF" : "#000000");
+  if (metaTheme) metaTheme.setAttribute("content", metaColor);
+
+  try {
+    const slotAccent = getExtensionSlotAccent("groceries", accentHex);
+    localStorage.setItem(
+      THEME_CACHE_KEY,
+      JSON.stringify({
+        themeId: themeDef.id,
+        mode,
+        accent: accentHex,
+        slotAccent,
+        stylesheetUrl: themeDef.stylesheetUrl || "",
+        metaColor,
+      })
+    );
+  } catch (e) {}
+
   syncWakeLockWithSettings();
 }
 
@@ -1377,7 +1649,7 @@ function renderAll() {
         showToast("Layout locked");
       });
     } else {
-      headerActions.innerHTML = `<button class="metro-ellipsis-btn global-ellipsis" id="btnSettings" title="Settings & Extensions">•••</button>`;
+      headerActions.innerHTML = `<button class="metro-ellipsis-btn global-ellipsis" id="btnSettings" title="Settings & Extensions" aria-label="Settings & Extensions">${ELLIPSIS_ICON_SVG}</button>`;
     }
   }
 
@@ -1414,8 +1686,9 @@ function renderAll() {
         ? "size-full"
         : "size-half";
 
-      const slotAccent = sanitizeColor(extMeta.accent || plugin.accent, "#00ABA9");
+      const slotAccent = getExtensionSlotAccent(slotConfig.extensionId, extMeta.accent || plugin.accent);
       const slotAccentFg = getContrastColor(slotAccent);
+      const slotAccentText = ensureReadableOnSurface(slotAccent, getEffectiveSurfaceHex());
       const slotEl = document.createElement("div");
       slotEl.dataset.slotId = slotConfig.id;
       slotEl.dataset.extensionId = slotConfig.extensionId;
@@ -1424,6 +1697,7 @@ function renderAll() {
       }`;
       slotEl.style.setProperty("--slot-accent", slotAccent);
       slotEl.style.setProperty("--slot-accent-fg", slotAccentFg);
+      slotEl.style.setProperty("--slot-accent-text", slotAccentText);
 
       if (uiState.arrangeMode) {
         // ====================================================================
@@ -1529,8 +1803,8 @@ function renderAll() {
         if (isRenamingThis) {
           const rInput = slotEl.querySelector(`#wfRenameInput_${cssSlotId}`);
           const commitWfRename = () => {
-            const val = rInput.value.trim().toLowerCase();
-            if (!val || val === plugin.name.toLowerCase()) {
+            const val = rInput.value.trim();
+            if (!val || val.toLowerCase() === plugin.name.toLowerCase()) {
               delete slotConfig.title;
             } else {
               slotConfig.title = val;
@@ -1635,7 +1909,7 @@ function renderAll() {
       // ======================================================================
       const ellipsisBtnHtml = `
         <div class="slot-controls">
-          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands">•••</button>
+          <button class="metro-ellipsis-btn ${drawer.open ? "active" : ""}" title="More commands" aria-label="More commands">${ELLIPSIS_ICON_SVG}</button>
         </div>
       `;
 
@@ -1647,9 +1921,9 @@ function renderAll() {
 
       const slotHeaderHtml = plugin.customHeaderTitles
         ? `
-          <div class="slot-header" style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--col-gap); align-items:baseline;">
+          <div class="slot-header double-slot-header">
             <h2 class="slot-title">${escapeHtml(leftTitle)}</h2>
-            <div style="display:flex; align-items:baseline; justify-content:space-between; width:100%;">
+            <div class="double-slot-right-head">
               <h2 class="slot-title">${escapeHtml(plugin.customHeaderTitles[1])}</h2>
               ${ellipsisBtnHtml}
             </div>
@@ -1746,8 +2020,8 @@ function renderAll() {
       if (drawer.mode === "rename" && !plugin.customHeaderTitles) {
         const rInput = slotEl.querySelector(`#drawerRenameInput_${cssSlotId}`);
         const commitDrawerRename = () => {
-          const val = rInput.value.trim().toLowerCase();
-          if (!val || val === plugin.name.toLowerCase()) {
+          const val = rInput.value.trim();
+          if (!val || val.toLowerCase() === plugin.name.toLowerCase()) {
             delete slotConfig.title;
           } else {
             slotConfig.title = val;
@@ -1805,7 +2079,7 @@ function renderAll() {
       emptyHalf.className = "metro-slot size-half empty-half-slot";
       emptyHalf.innerHTML = `
         <div style="font-size:28px; font-weight:200;">+</div>
-        <div style="font-size:15px; text-transform:lowercase;">fill bottom half-column</div>
+        <div class="ghost-label" style="font-size:15px;">fill bottom half-column</div>
       `;
       emptyHalf.addEventListener("click", () => {
         uiState.targetColumnId = colConfig.id;
@@ -1822,7 +2096,7 @@ function renderAll() {
     ghostCol.className = "metro-column add-column-ghost";
     ghostCol.innerHTML = `
       <div style="font-size:48px; font-weight:200; line-height:1;">+</div>
-      <div style="font-size:20px; font-weight:300; text-transform:lowercase;">add column</div>
+      <div class="ghost-label" style="font-size:20px;">add column</div>
       <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:0 16px;">
         choose any enabled extension
       </div>
@@ -1879,7 +2153,7 @@ function renderTrashCards(containerEl, targetColId = null, halfOnly = false) {
     const plugin = ExtensionRegistry.get(entry.slot.extensionId);
     const singletonBlocked =
       plugin && !plugin.allowMultiple && isExtensionMountedOnPanorama(entry.slot.extensionId);
-    const entryAccent = sanitizeColor(entry.accent, "#00ABA9");
+    const entryAccent = getExtensionSlotAccent(entry.slot.extensionId, entry.accent);
     const entryAccentFg = getContrastColor(entryAccent);
 
     const card = document.createElement("div");
@@ -1887,7 +2161,7 @@ function renderTrashCards(containerEl, targetColId = null, halfOnly = false) {
     card.style.setProperty("--ext-color", entryAccent);
     card.innerHTML = `
       <div>
-        <div style="font-size:20px; font-weight:300; text-transform:lowercase;">
+        <div class="card-title">
           ${escapeHtml(entry.title)}
         </div>
         <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
@@ -1983,25 +2257,27 @@ function renderFlyoutContent() {
     const activeTab = ["extensions", "appearance", "system", "install"].includes(uiState.settingsPivot)
       ? uiState.settingsPivot
       : "extensions";
-    const isDark = (appState.settings.theme || "dark") === "dark";
+    const activeTheme = getActiveThemeDef();
+    const effectiveMode = getEffectiveThemeMode(activeTheme);
+    const isDark = effectiveMode === "dark";
 
     panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
         <h2 class="flyout-title">settings</h2>
         <button class="metro-ellipsis-btn global-ellipsis flyout-close-btn active" id="btnCloseFlyout" title="Close settings">✕</button>
       </div>
 
-      <div class="sub-pivots" style="gap:20px; margin-bottom:4px; flex-wrap:wrap;">
-        <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions" style="font-size:21px;">
+      <div class="sub-pivots settings-pivots">
+        <button class="pivot-tab ${activeTab === "extensions" ? "active" : ""}" data-tab="extensions">
           extensions
         </button>
-        <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance" style="font-size:21px;">
+        <button class="pivot-tab ${activeTab === "appearance" ? "active" : ""}" data-tab="appearance">
           appearance
         </button>
-        <button class="pivot-tab ${activeTab === "system" ? "active" : ""}" data-tab="system" style="font-size:21px;">
+        <button class="pivot-tab ${activeTab === "system" ? "active" : ""}" data-tab="system">
           system
         </button>
-        <button class="pivot-tab ${activeTab === "install" ? "active" : ""}" data-tab="install" style="font-size:21px;">
+        <button class="pivot-tab ${activeTab === "install" ? "active" : ""}" data-tab="install">
           install
         </button>
       </div>
@@ -2024,7 +2300,7 @@ function renderFlyoutContent() {
       tabBody.innerHTML = `
         <div class="extension-card" style="--ext-color: var(--accent); justify-content:space-between;">
           <div>
-            <div style="font-size:20px; font-weight:300; text-transform:lowercase;">customize layout</div>
+            <div class="card-title">customize layout</div>
             <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
               Move, resize, rename, add, or restore columns and widgets on the Panorama.
             </div>
@@ -2049,13 +2325,13 @@ function renderFlyoutContent() {
         const plugin = ExtensionRegistry.get(ext.id);
         const modeLabel =
           plugin && plugin.allowMultiple ? "multiple instances allowed" : "single instance";
-        const extAccent = sanitizeColor(ext.accent, "#00ABA9");
+        const extAccent = getExtensionSlotAccent(ext.id, ext.accent);
         const card = document.createElement("div");
         card.className = "extension-card";
         card.style.setProperty("--ext-color", extAccent);
         card.innerHTML = `
           <div>
-            <div style="font-size:20px; font-weight:300; text-transform:lowercase;">
+            <div class="card-title">
               ${escapeHtml(ext.name)}
             </div>
             <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
@@ -2119,22 +2395,51 @@ function renderFlyoutContent() {
         extContainer.appendChild(card);
       });
     } else if (activeTab === "appearance") {
+      const supportsMultipleModes = Array.isArray(activeTheme.modes) && activeTheme.modes.length > 1;
+      const singleModeLabel = effectiveMode === "dark" ? "dark only" : "light only";
+      const themeAccents = getThemeAccents(activeTheme);
+      const currentAccentHex = getEffectiveThemeAccent(activeTheme).toLowerCase();
+
       tabBody.innerHTML = `
         <div class="flyout-section">
           <div class="flyout-section-title">theme</div>
-          <div class="extension-card" style="--ext-color: var(--accent);">
-            <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">dark mode</div>
-              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
-                True pitch-black (#000000) Metro dark canvas vs. crisp light mode.
-              </div>
-            </div>
-            <div class="metro-toggle ${isDark ? "on" : ""}" id="toggleThemeSwitch" role="switch" aria-checked="${Boolean(isDark)}" tabindex="0"></div>
-          </div>
+          <p style="font-size:12px; color:var(--text-secondary); margin-bottom:2px;">
+            Drop any folder into <code>public/themes/</code> with <code>theme.json</code> &amp; <code>theme.css</code> to add a custom theme.
+          </p>
+          <div class="theme-picker-grid" id="themePickerGrid"></div>
         </div>
 
         <div class="flyout-section">
-          <div class="flyout-section-title">metro accent color</div>
+          <div class="flyout-section-title">color mode</div>
+          ${
+            supportsMultipleModes
+              ? `
+                <div class="extension-card" style="--ext-color: var(--accent);">
+                  <div>
+                    <div class="card-title">dark mode</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                      Switch ${escapeHtml(activeTheme.name)} between dark and light palettes.
+                    </div>
+                  </div>
+                  <div class="metro-toggle ${isDark ? "on" : ""}" id="toggleThemeSwitch" role="switch" aria-checked="${Boolean(isDark)}" tabindex="0"></div>
+                </div>
+              `
+              : `
+                <div class="extension-card" style="--ext-color: var(--accent);">
+                  <div>
+                    <div class="card-title">fixed palette mode</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                      ${escapeHtml(activeTheme.name)} is crafted specifically as a ${escapeHtml(effectiveMode)}-mode interface.
+                    </div>
+                  </div>
+                  <span class="singleton-active-badge">${escapeHtml(singleModeLabel)}</span>
+                </div>
+              `
+          }
+        </div>
+
+        <div class="flyout-section">
+          <div class="flyout-section-title">${escapeHtml(activeTheme.name)} accent color</div>
           <div class="swatch-grid" id="swatchGrid"></div>
         </div>
 
@@ -2155,32 +2460,83 @@ function renderFlyoutContent() {
         </div>
       `;
 
-      const themeSwitch = tabBody.querySelector("#toggleThemeSwitch");
-      const toggleTheme = () => {
-        appState.settings.theme = isDark ? "light" : "dark";
-        applyThemeAndAccent();
-        saveState(`Switched to Metro ${appState.settings.theme} mode`);
-      };
-      themeSwitch.addEventListener("click", toggleTheme);
-      themeSwitch.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggleTheme();
-        }
+      const pickerGrid = tabBody.querySelector("#themePickerGrid");
+      Array.from(ThemeRegistry.values()).forEach((tDef) => {
+        const tModes = Array.isArray(tDef.modes) && tDef.modes.length > 0 ? tDef.modes : ["dark", "light"];
+        const previewMode = tModes.includes(effectiveMode) ? effectiveMode : (tDef.defaultMode || tModes[0]);
+        const p =
+          (tDef.preview && (tDef.preview[previewMode] || tDef.preview.dark || tDef.preview.light)) ||
+          { canvas: "#000000", tile: "#111111", accent: tDef.defaultAccent || "#00ABA9" };
+        const dotColors = Object.values(tDef.extensionAccents || {}).slice(0, 3);
+        const modeBadge =
+          tModes.length > 1
+            ? "Dark · Light"
+            : tModes[0] === "dark"
+            ? "Dark Only"
+            : "Light Only";
+
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `theme-card ${tDef.id === activeTheme.id ? "selected" : ""}`;
+        card.style.textAlign = "left";
+        card.style.fontFamily = "inherit";
+        card.setAttribute("aria-pressed", String(tDef.id === activeTheme.id));
+        card.innerHTML = `
+          <div class="theme-preview-strip" style="background:${escapeHtml(p.canvas)};">
+            <div class="theme-preview-tile" style="background:${escapeHtml(p.tile)};">
+              <span class="theme-preview-accent" style="background:${escapeHtml(p.accent)};"></span>
+              ${dotColors
+                .map((c) => `<span class="theme-preview-dot" style="background:${escapeHtml(c)};"></span>`)
+                .join("")}
+            </div>
+          </div>
+          <div class="theme-card-head">
+            <span class="theme-card-name">${escapeHtml(tDef.name)}</span>
+            <span class="theme-mode-badge">${escapeHtml(modeBadge)}</span>
+          </div>
+          <div class="theme-card-desc">${escapeHtml(tDef.description || "")}</div>
+        `;
+        card.addEventListener("click", () => selectTheme(tDef.id));
+        pickerGrid.appendChild(card);
       });
 
+      const themeSwitch = tabBody.querySelector("#toggleThemeSwitch");
+      if (themeSwitch) {
+        const toggleTheme = () => {
+          appState.settings.theme = isDark ? "light" : "dark";
+          applyThemeAndAccent();
+          renderAll();
+          renderFlyoutContent();
+          saveState(`Switched to ${activeTheme.name} ${appState.settings.theme} mode`);
+        };
+        themeSwitch.addEventListener("click", toggleTheme);
+        themeSwitch.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleTheme();
+          }
+        });
+      }
+
       const swatchGrid = tabBody.querySelector("#swatchGrid");
-      METRO_ACCENTS.forEach((sw) => {
-        const el = document.createElement("div");
-        el.className = `color-swatch ${
-          String(appState.settings.accentColor || "").toLowerCase() === sw.hex.toLowerCase() ? "selected" : ""
-        }`;
+      themeAccents.forEach((sw) => {
+        const isSelected = currentAccentHex === sw.hex.toLowerCase();
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = `color-swatch ${isSelected ? "selected" : ""}`;
         el.style.backgroundColor = sw.hex;
         el.title = sw.name;
+        el.setAttribute("aria-label", `${sw.name} (${sw.hex})`);
+        el.setAttribute("aria-pressed", String(isSelected));
         el.addEventListener("click", () => {
           appState.settings.accentColor = sw.hex;
+          if (!appState.settings.themeAccents || typeof appState.settings.themeAccents !== "object" || Array.isArray(appState.settings.themeAccents)) {
+            appState.settings.themeAccents = {};
+          }
+          appState.settings.themeAccents[activeTheme.id] = sw.hex;
           applyThemeAndAccent();
-          saveState(`Accent set to Metro ${sw.name}`);
+          renderFlyoutContent();
+          saveState(`Accent set to ${activeTheme.name} ${sw.name}`);
         });
         swatchGrid.appendChild(el);
       });
@@ -2206,7 +2562,7 @@ function renderFlyoutContent() {
       const saveHubName = () => {
         const val = hubNameInput.value.trim();
         if (val) {
-          appState.settings.familyName = val.toLowerCase();
+          appState.settings.familyName = val;
           applyThemeAndAccent();
           saveState("Updated hub title");
         }
@@ -2224,7 +2580,7 @@ function renderFlyoutContent() {
           <div class="flyout-section-title">backup &amp; restore</div>
           <div class="extension-card" style="--ext-color: var(--accent);">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">backup hub data</div>
+              <div class="card-title">backup hub data</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 Download all widgets, items, layout, and settings to a JSON file.
               </div>
@@ -2234,7 +2590,7 @@ function renderFlyoutContent() {
 
           <div class="extension-card" style="--ext-color: var(--accent);">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">restore from backup</div>
+              <div class="card-title">restore from backup</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 Upload a previously saved JSON backup file and restore it to the server.
               </div>
@@ -2246,9 +2602,9 @@ function renderFlyoutContent() {
 
         <div class="flyout-section">
           <div class="flyout-section-title">data presets</div>
-          <div class="extension-card" style="--ext-color: #60A917;">
+          <div class="extension-card" style="--ext-color: var(--success-color);">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">load demo data</div>
+              <div class="card-title">load demo data</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 Populate all widgets with sample POC family events, meals, groceries, chores, and notes while keeping your layout and settings.
               </div>
@@ -2256,14 +2612,14 @@ function renderFlyoutContent() {
             <button class="metro-btn" id="btnSystemLoadDemo">load demo</button>
           </div>
 
-          <div class="extension-card" style="--ext-color: #A20025;">
+          <div class="extension-card" style="--ext-color: var(--danger-color);">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">clear all data</div>
+              <div class="card-title">clear all data</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 Remove all items across every widget (events, meals, groceries, chores, notes, and trash) while keeping your layout.
               </div>
             </div>
-            <button class="metro-btn subtle" style="border-color:#A20025; color:var(--danger-text, #FF6B8B);" id="btnSystemClear">clear</button>
+            <button class="metro-btn subtle" style="border-color:var(--danger-color); color:var(--danger-text);" id="btnSystemClear">clear</button>
           </div>
         </div>
       `;
@@ -2403,17 +2759,17 @@ function renderFlyoutContent() {
         wakeAccent = "var(--border-strong)";
       } else if (wakeActive) {
         wakeStatusText = "✓ Active — Screen Wake Lock is keeping the display awake.";
-        wakeAccent = "#60A917";
+        wakeAccent = "var(--success-color)";
       } else if (!isSecure) {
         wakeStatusText =
           "⚠ Blocked on plain HTTP LAN — follow Step 1 below to enable Chrome's secure origin flag on this tablet.";
-        wakeAccent = "#F0A30A";
+        wakeAccent = "var(--warning-color)";
       } else if (wakeSupported) {
         wakeStatusText = "Ready — tap anywhere on the page to lock the screen awake.";
         wakeAccent = "var(--accent)";
       } else {
         wakeStatusText = "Screen Wake Lock API is not supported by this browser.";
-        wakeAccent = "#F0A30A";
+        wakeAccent = "var(--warning-color)";
       }
 
       const displayModeLabel = isStandalone
@@ -2428,7 +2784,7 @@ function renderFlyoutContent() {
 
           <div class="extension-card" style="--ext-color: ${wakeAccent};">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">keep screen awake</div>
+              <div class="card-title">keep screen awake</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 ${escapeHtml(wakeStatusText)}
               </div>
@@ -2438,7 +2794,7 @@ function renderFlyoutContent() {
 
           <div class="extension-card" style="--ext-color: var(--accent);">
             <div>
-              <div style="font-size:20px; font-weight:300; text-transform:lowercase;">display mode</div>
+              <div class="card-title">display mode</div>
               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
                 ${escapeHtml(displayModeLabel)} · ${isSecure ? "✓ Secure Context" : "⚠ HTTP LAN Context"}
               </div>
@@ -2459,8 +2815,8 @@ function renderFlyoutContent() {
         <div class="flyout-section">
           <div class="flyout-section-title">pixel tablet pwa setup (3 steps)</div>
 
-          <div class="extension-card" style="--ext-color: #1BA1E2; align-items:flex-start; flex-direction:column; gap:8px;">
-            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+          <div class="extension-card" style="--ext-color: var(--info-color); align-items:flex-start; flex-direction:column; gap:8px;">
+            <div class="card-title" style="font-size:19px;">
               1. allow lan origin in chrome (one-time, 20 sec)
             </div>
             <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
@@ -2476,8 +2832,8 @@ function renderFlyoutContent() {
             </div>
           </div>
 
-          <div class="extension-card" style="--ext-color: #60A917; align-items:flex-start; flex-direction:column; gap:6px;">
-            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+          <div class="extension-card" style="--ext-color: var(--success-color); align-items:flex-start; flex-direction:column; gap:6px;">
+            <div class="card-title" style="font-size:19px;">
               2. install as a fullscreen pwa
             </div>
             <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
@@ -2485,8 +2841,8 @@ function renderFlyoutContent() {
             </div>
           </div>
 
-          <div class="extension-card" style="--ext-color: #FA6800; align-items:flex-start; flex-direction:column; gap:6px;">
-            <div style="font-size:19px; font-weight:300; text-transform:lowercase;">
+          <div class="extension-card" style="--ext-color: var(--warning-color); align-items:flex-start; flex-direction:column; gap:6px;">
+            <div class="card-title" style="font-size:19px;">
               3. charging speaker dock tip (optional)
             </div>
             <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
@@ -2568,7 +2924,7 @@ function renderFlyoutContent() {
     const trashCount = (appState.trashedWidgets || []).length;
 
     panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
         <h2 class="flyout-title">${isHalfFill ? "fill half-column" : "add column"}</h2>
         <button class="metro-ellipsis-btn global-ellipsis flyout-close-btn active" id="btnCloseFlyout" title="Close">✕</button>
       </div>
@@ -2620,7 +2976,7 @@ function renderFlyoutContent() {
       const isDoubleOnly = plugin && plugin.fixedSize === "double";
       const singletonAlreadyActive =
         plugin && !plugin.allowMultiple && isExtensionMountedOnPanorama(ext.id);
-      const extAccent = sanitizeColor(ext.accent, "#00ABA9");
+      const extAccent = getExtensionSlotAccent(ext.id, ext.accent);
       const extAccentFg = getContrastColor(extAccent);
 
       const card = document.createElement("div");
@@ -2628,7 +2984,7 @@ function renderFlyoutContent() {
       card.style.setProperty("--ext-color", extAccent);
       card.innerHTML = `
         <div>
-          <div style="font-size:20px; font-weight:300; text-transform:lowercase;">${escapeHtml(ext.name)}</div>
+          <div class="card-title">${escapeHtml(ext.name)}</div>
           <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(ext.description)}</div>
         </div>
         <div style="display:flex; gap:8px; flex-shrink:0; align-items:center;">
@@ -2832,16 +3188,14 @@ function updateClock() {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
-    }).toLowerCase();
+    });
   }
   if (dateEl) {
-    dateEl.textContent = now
-      .toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-      })
-      .toLowerCase();
+    dateEl.textContent = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
   }
 
   const currentHourKey = `${now.toDateString()}-${now.getHours()}`;
@@ -2854,13 +3208,11 @@ function updateClock() {
 }
 
 function formatTimeShort(dateObj) {
-  return dateObj
-    .toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })
-    .toLowerCase();
+  return dateObj.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function escapeHtml(str) {

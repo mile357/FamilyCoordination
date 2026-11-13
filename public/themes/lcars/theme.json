@@ -1,0 +1,33 @@
+{
+  "id": "lcars",
+  "name": "LCARS",
+  "description": "Star Trek LCARS operations console with signature sweeping asymmetric elbows, pill endcaps, tabular Stardate clock, and pitch-black readability.",
+  "author": "Family Hub",
+  "order": 11,
+  "stylesheet": "theme.css",
+  "modes": ["dark"],
+  "defaultMode": "dark",
+  "defaultAccent": "#FF9900",
+  "accents": [
+    { "name": "Command Amber", "hex": "#FF9900" },
+    { "name": "Mars Peach", "hex": "#FFAA90" },
+    { "name": "Nebula Lilac", "hex": "#CC99CC" },
+    { "name": "Warp Ice", "hex": "#99CCFF" },
+    { "name": "Computer Gold", "hex": "#FFCC66" },
+    { "name": "Sensor Coral", "hex": "#FF7755" }
+  ],
+  "extensionAccents": {
+    "calendar": "#FF9900",
+    "meals": "#FFAA90",
+    "groceries": "#99CCFF",
+    "chores": "#CC99CC",
+    "notes": "#FFCC66",
+    "task-checklist": "#FF8866"
+  },
+  "metaThemeColor": {
+    "dark": "#000000"
+  },
+  "preview": {
+    "dark": { "canvas": "#000000", "tile": "#08090D", "accent": "#FF9900" }
+  }
+}

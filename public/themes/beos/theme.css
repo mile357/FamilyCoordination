@@ -1,0 +1,274 @@
+/*
+ * BeOS R5 Theme — Signature Yellow Tabs & Silver Bevel Windows
+ * Features iconic #FFCB00 window tabs atop crisp 3D beveled silver frames,
+ * deep BeOS petrol-blue workspace (light) or Haiku Slate Night (dark).
+ */
+
+[data-theme-id="beos"] {
+  --font-display: "Swis721 BT", "Noto Sans", "DejaVu Sans", "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Noto Sans", "DejaVu Sans", "Segoe UI", -apple-system, sans-serif;
+  --font-mono: "DejaVu Sans Mono", ui-monospace, monospace;
+
+  --title-size: 24px;
+  --title-weight: 700;
+  --title-tracking: -0.01em;
+  --slot-title-size: 16px;
+  --slot-title-weight: 700;
+  --card-title-weight: 700;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 22px;
+  --clock-weight: 700;
+  --date-size: 14px;
+  --date-weight: 600;
+  --header-height: 54px;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: uppercase;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --beos-tab-bg: #ffcb00;
+  --beos-tab-hi: #fff099;
+  --beos-tab-lo: #b88a00;
+  --beos-tab-fg: #111111;
+
+  --radius-slot: 2px;
+  --radius-card: 2px;
+  --radius-btn: 3px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-checkbox: 2px;
+}
+
+[data-theme-id="beos"][data-theme="light"],
+[data-theme-id="beos"] {
+  --bg-canvas: #336699;
+  --bg-canvas-image: linear-gradient(180deg, #3a6fa6 0%, #2a5580 100%);
+  --bg-header: #d4d4d4;
+  --bg-surface: #d8d8d8;
+  --bg-surface-elevated: #e6e6e6;
+  --bg-tile: #f4f4f4;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: #e4e4e4;
+  --bg-appbar: #c8c8c8;
+  --bg-input: #ffffff;
+  --bg-flyout: #d8d8d8;
+  --bg-backdrop: rgba(15, 25, 38, 0.45);
+  --bg-wireframe-overlay: rgba(216, 216, 216, 0.88);
+
+  --text-primary: #111111;
+  --text-secondary: #333333;
+  --text-muted: #555555;
+
+  --border-color: #909090;
+  --border-strong: #222222;
+
+  --danger-color: #c92a2a;
+  --danger-text: #a51d1d;
+  --success-color: #2b8a3e;
+  --warning-color: #d97706;
+  --info-color: #2a62b6;
+
+  --beos-chrome: #d8d8d8;
+  --beos-hi: #ffffff;
+  --beos-lo: #888888;
+
+  --slot-border: 1px solid #1e1e1e;
+  --slot-border-top: 1px solid #1e1e1e;
+  --card-border: 1px solid #b5b5b5;
+  --header-border-bottom: 2px solid #222222;
+  --shadow-slot: 2px 3px 0 rgba(0, 0, 0, 0.28);
+  --shadow-flyout: -3px 0 0 #1e1e1e;
+
+  --scrollbar-track: #c4c4c4;
+  --scrollbar-thumb: #999999;
+  --scrollbar-thumb-hover: #777777;
+}
+
+[data-theme-id="beos"][data-theme="dark"] {
+  --bg-canvas: #161f2c;
+  --bg-canvas-image: linear-gradient(180deg, #1a2433 0%, #111822 100%);
+  --bg-header: #2b3038;
+  --bg-surface: #252a32;
+  --bg-surface-elevated: #313742;
+  --bg-tile: #1c2026;
+  --bg-tile-hover: #252a33;
+  --bg-tile-subtle: #282d36;
+  --bg-appbar: #20242c;
+  --bg-input: #14171c;
+  --bg-flyout: #252a32;
+  --bg-backdrop: rgba(0, 0, 0, 0.60);
+  --bg-wireframe-overlay: rgba(28, 32, 38, 0.88);
+
+  --text-primary: #f1f3f5;
+  --text-secondary: #c1c7d0;
+  --text-muted: #8b949e;
+
+  --border-color: #464e5c;
+  --border-strong: #0e1014;
+
+  --danger-color: #e03131;
+  --danger-text: #ff7b7b;
+  --success-color: #37b24d;
+  --warning-color: #f59f00;
+  --info-color: #4dabf7;
+
+  --beos-chrome: #2a2f38;
+  --beos-hi: #424957;
+  --beos-lo: #12151a;
+
+  --slot-border: 1px solid #0b0d10;
+  --slot-border-top: 1px solid #0b0d10;
+  --card-border: 1px solid #3c4350;
+  --header-border-bottom: 2px solid #0b0d10;
+  --shadow-slot: 2px 3px 0 rgba(0, 0, 0, 0.55);
+  --shadow-flyout: -3px 0 0 #0b0d10;
+
+  --scrollbar-track: #1f242c;
+  --scrollbar-thumb: #4b5463;
+  --scrollbar-thumb-hover: #647082;
+}
+
+/* BeOS Deskbar Top Strip */
+[data-theme-id="beos"] .panorama-header {
+  height: 54px;
+  padding: 8px 20px;
+  box-shadow: inset 0 1px 0 var(--beos-hi), inset 0 -1px 0 var(--beos-lo);
+}
+
+[data-theme-id="beos"] .panorama-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--beos-tab-bg);
+  color: var(--beos-tab-fg);
+  padding: 2px 12px;
+  border: 1px solid #222222;
+  box-shadow: inset 1px 1px 0 var(--beos-tab-hi), inset -1px -1px 0 var(--beos-tab-lo);
+  font-size: 19px;
+}
+
+/* BeOS Window Frame + Iconic Yellow Tab Header */
+[data-theme-id="beos"] .metro-slot {
+  background: var(--beos-chrome);
+  padding: 0 5px 5px 5px;
+  gap: 0;
+  box-shadow: inset 1px 0 0 var(--beos-hi), inset -1px -1px 0 var(--beos-lo), var(--shadow-slot);
+}
+
+[data-theme-id="beos"] .slot-header {
+  margin: -1px -6px 5px -6px;
+  padding: 5px 10px;
+  min-height: 36px;
+  background: var(--beos-tab-bg);
+  color: var(--beos-tab-fg);
+  border: 1px solid #1e1e1e;
+  box-shadow:
+    inset 1px 1px 0 var(--beos-tab-hi),
+    inset -1px -1px 0 var(--beos-tab-lo);
+}
+
+[data-theme-id="beos"] .slot-title {
+  color: var(--beos-tab-fg);
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+[data-theme-id="beos"] .slot-title::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  background: var(--slot-accent, var(--accent));
+  border: 1px solid #1e1e1e;
+  flex-shrink: 0;
+}
+
+[data-theme-id="beos"] .slot-header .metro-ellipsis-btn {
+  color: var(--beos-tab-fg);
+  background: #ffd84d;
+  border: 1px solid #222222;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  box-shadow: inset 1px 1px 0 #fff5bd, inset -1px -1px 0 #b88a00;
+}
+
+[data-theme-id="beos"] .slot-body {
+  background: var(--bg-tile);
+  border: 1px solid var(--beos-lo);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.14);
+  padding: 8px;
+}
+
+[data-theme-id="beos"] .metro-btn {
+  background: var(--beos-chrome);
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--beos-hi), inset -1px -1px 0 var(--beos-lo);
+  font-weight: 600;
+  padding: 6px 14px;
+}
+
+[data-theme-id="beos"] .metro-btn.accent {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: #1e1e1e;
+}
+
+[data-theme-id="beos"] .metro-checkbox {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+}
+
+[data-theme-id="beos"] .metro-checkbox.checked {
+  background: var(--slot-accent, var(--accent));
+  border-color: var(--border-strong);
+  color: var(--slot-accent-fg, #ffffff);
+}
+
+[data-theme-id="beos"] .sub-pivots {
+  box-shadow: none;
+  gap: 5px;
+  padding-bottom: 4px;
+}
+
+[data-theme-id="beos"] .pivot-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 5px 6px;
+  background: var(--beos-chrome);
+  border: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: inset 1px 1px 0 var(--beos-hi);
+}
+
+[data-theme-id="beos"] .settings-pivots .pivot-tab {
+  font-size: 14px;
+  padding: 6px 10px;
+}
+
+[data-theme-id="beos"] .pivot-tab.active {
+  background: var(--beos-tab-bg);
+  color: var(--beos-tab-fg);
+  border-color: #1e1e1e;
+  border-bottom-color: #1e1e1e;
+}
+
+[data-theme-id="beos"] .metro-toggle {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-tile-subtle);
+}

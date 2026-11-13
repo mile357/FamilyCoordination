@@ -1,0 +1,187 @@
+/*
+ * E-Ink / Paper Planner Theme
+ * Crisp archival rag paper, fountain-pen 1.5px rules, editorial serif headers,
+ * high-contrast ink checkboxes, and zero glare or decorative clutter.
+ */
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/newsreader-600.woff2") format("woff2");
+}
+
+[data-theme-id="eink"] {
+  --font-display: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-body: "Inter", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Georgia, serif;
+
+  --title-size: 38px;
+  --title-weight: 600;
+  --title-tracking: -0.015em;
+  --slot-title-size: 25px;
+  --slot-title-weight: 600;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 34px;
+  --clock-weight: 500;
+  --date-size: 17px;
+  --date-weight: 500;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: uppercase;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --radius-slot: 2px;
+  --radius-card: 2px;
+  --radius-btn: 3px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-checkbox: 2px;
+}
+
+[data-theme-id="eink"][data-theme="light"],
+[data-theme-id="eink"] {
+  --bg-canvas: #f4f1ea;
+  --bg-header: #f4f1ea;
+  --bg-surface: #fbf9f4;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #faf8f3;
+  --bg-tile-hover: #efebe0;
+  --bg-tile-subtle: #efeae0;
+  --bg-appbar: #eae4d8;
+  --bg-input: #ffffff;
+  --bg-flyout: #f8f5ee;
+  --bg-backdrop: rgba(20, 19, 17, 0.35);
+  --bg-wireframe-overlay: rgba(244, 241, 234, 0.90);
+
+  --text-primary: #141413;
+  --text-secondary: #3d3b37;
+  --text-muted: #66635d;
+
+  --border-color: #c7c1b4;
+  --border-strong: #141413;
+
+  --danger-color: #8b1e2b;
+  --danger-text: #8b1e2b;
+  --success-color: #1d5632;
+  --warning-color: #854d14;
+  --info-color: #1b3b6f;
+
+  --slot-border: 1.5px solid #141413;
+  --slot-border-top: 4px solid var(--slot-accent, #141413);
+  --card-border: 1px solid #cfc9bc;
+  --header-border-bottom: 2px solid #141413;
+  --shadow-slot: none;
+  --shadow-card: none;
+  --shadow-flyout: -4px 0 0 #141413;
+
+  --scrollbar-track: #e9e4d8;
+  --scrollbar-thumb: #9e9788;
+  --scrollbar-thumb-hover: #141413;
+}
+
+/* Warm E-Reader Frontlight Night Mode */
+[data-theme-id="eink"][data-theme="dark"] {
+  --bg-canvas: #1b1915;
+  --bg-header: #1b1915;
+  --bg-surface: #24211c;
+  --bg-surface-elevated: #2e2a23;
+  --bg-tile: #221f1a;
+  --bg-tile-hover: #2d2922;
+  --bg-tile-subtle: #28241e;
+  --bg-appbar: #2a2620;
+  --bg-input: #171511;
+  --bg-flyout: #221f1a;
+  --bg-backdrop: rgba(0, 0, 0, 0.65);
+  --bg-wireframe-overlay: rgba(27, 25, 21, 0.90);
+
+  --text-primary: #eee6d8;
+  --text-secondary: #c7bba6;
+  --text-muted: #968b78;
+
+  --border-color: #4a4337;
+  --border-strong: #d4c6ae;
+
+  --danger-color: #d9737e;
+  --danger-text: #f299a3;
+  --success-color: #7cc494;
+  --warning-color: #e6b273;
+  --info-color: #8eb4e6;
+
+  --slot-border: 1.5px solid #635a4b;
+  --slot-border-top: 4px solid var(--slot-accent, #d4c6ae);
+  --card-border: 1px solid #423c31;
+  --header-border-bottom: 2px solid #635a4b;
+  --shadow-flyout: -4px 0 0 #635a4b;
+
+  --scrollbar-track: #221f1a;
+  --scrollbar-thumb: #6b6151;
+  --scrollbar-thumb-hover: #a89982;
+}
+
+[data-theme-id="eink"] .metro-slot {
+  padding: 14px 16px;
+}
+
+[data-theme-id="eink"] .slot-header {
+  border-bottom: 1.5px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+[data-theme-id="eink"] .metro-btn {
+  border: 1.5px solid var(--border-strong);
+  background: transparent;
+  font-weight: 600;
+}
+
+[data-theme-id="eink"] .metro-btn.accent {
+  background: var(--text-primary);
+  color: var(--bg-canvas);
+  border-color: var(--text-primary);
+}
+
+[data-theme-id="eink"] .metro-checkbox {
+  border: 1.5px solid var(--border-strong);
+}
+
+[data-theme-id="eink"] .metro-checkbox.checked {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-canvas);
+}
+
+[data-theme-id="eink"] .sub-pivots {
+  gap: 14px;
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+}
+
+[data-theme-id="eink"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-style: italic;
+  border-bottom: 3px solid transparent;
+}
+
+[data-theme-id="eink"] .settings-pivots .pivot-tab {
+  font-size: 18px;
+}
+
+[data-theme-id="eink"] .pivot-tab.active {
+  border-bottom-color: var(--text-primary);
+  font-style: normal;
+  font-weight: 700;
+}
+
+[data-theme-id="eink"] .metro-flyout {
+  border-left: 2px solid var(--border-strong);
+}
