@@ -305,7 +305,7 @@ export default {
   id: "chores",
   order: 40,
   allowMultiple: true,
-  name: "daily chores",
+  name: "to-do list",
   description:
     "Repeating weekday checklist, one-off tasks & 7-day history. Supports multiple independent lists (e.g. per person).",
   accent: "#FA6800",
