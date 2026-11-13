@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "40";
+const ASSET_VERSION = "42";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -77,6 +77,7 @@ const FALLBACK_EXTENSION_FILES = [
   "meals.js",
   "groceries.js",
   "chores.js",
+  "task-checklist.js",
   "notes.js",
 ];
 
@@ -237,6 +238,26 @@ function getSlotTitle(slotConfig, plugin) {
   return (plugin && plugin.name) || (slotConfig && slotConfig.extensionId) || "widget";
 }
 
+function getRegisteredExtensionsList() {
+  const ordered = [];
+  for (const [id, plugin] of ExtensionRegistry.entries()) {
+    const saved = (appState.extensions && appState.extensions[id]) || {};
+    ordered.push({
+      meta: saved,
+      plugin,
+      id,
+      name: plugin.name || saved.name || id,
+      description: plugin.description || plugin.infoText || saved.description || "",
+      accent: plugin.accent || saved.accent || "#00ABA9",
+      enabled:
+        saved.enabled !== undefined
+          ? Boolean(saved.enabled)
+          : plugin.defaultEnabled !== false,
+    });
+  }
+  return ordered;
+}
+
 function isExtensionMountedOnPanorama(extId) {
   if (!appState || !Array.isArray(appState.columns)) return false;
   const extMeta = appState.extensions && appState.extensions[extId];
@@ -355,16 +376,36 @@ function syncExtensionsWithAppState() {
   }
 
   for (const [id, plugin] of ExtensionRegistry.entries()) {
+    const nextName = plugin.name || plugin.id;
+    const nextDescription = plugin.description || plugin.infoText || "";
+    const nextDefaultSize = plugin.fixedSize || plugin.defaultSize || "half";
+    const nextAccent = plugin.accent || "#00ABA9";
+
     if (!appState.extensions[id] || typeof appState.extensions[id] !== "object") {
       appState.extensions[id] = {
         id: plugin.id,
-        name: plugin.name || plugin.id,
-        description: plugin.description || plugin.infoText || "",
+        name: nextName,
+        description: nextDescription,
         enabled: plugin.defaultEnabled !== false,
-        defaultSize: plugin.fixedSize || plugin.defaultSize || "half",
-        accent: plugin.accent || "#00ABA9",
+        defaultSize: nextDefaultSize,
+        accent: nextAccent,
       };
       didMutate = true;
+    } else {
+      const extMeta = appState.extensions[id];
+      const pluginFields = [
+        ["id", plugin.id],
+        ["name", nextName],
+        ["description", nextDescription],
+        ["defaultSize", nextDefaultSize],
+        ["accent", nextAccent],
+      ];
+      for (const [field, val] of pluginFields) {
+        if (extMeta[field] !== val) {
+          extMeta[field] = val;
+          didMutate = true;
+        }
+      }
     }
 
     // Only initialize top-level state for singleton extensions (!plugin.allowMultiple)
@@ -2165,7 +2206,7 @@ function renderTrashCards(containerEl, targetColId = null, halfOnly = false) {
           ${escapeHtml(entry.title)}
         </div>
         <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
-          ${escapeHtml(entry.extensionName)}${entry.summary ? ` · ${escapeHtml(entry.summary)}` : ""}
+          ${escapeHtml((plugin && plugin.name) || entry.extensionName)}${entry.summary ? ` · ${escapeHtml(entry.summary)}` : ""}
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
@@ -2321,8 +2362,8 @@ function renderFlyoutContent() {
         renderAll();
       });
       const extContainer = tabBody.querySelector("#extCardsContainer");
-      Object.values(appState.extensions).forEach((ext) => {
-        const plugin = ExtensionRegistry.get(ext.id);
+      getRegisteredExtensionsList().forEach((ext) => {
+        const plugin = ext.plugin;
         const modeLabel =
           plugin && plugin.allowMultiple ? "multiple instances allowed" : "single instance";
         const extAccent = getExtensionSlotAccent(ext.id, ext.accent);
@@ -2345,14 +2386,16 @@ function renderFlyoutContent() {
         `;
         const toggleEl = card.querySelector(".metro-toggle");
         const toggleExt = () => {
-          ext.enabled = !ext.enabled;
-          if (ext.enabled && plugin) {
+          if (!appState.extensions[ext.id]) return;
+          const nextEnabled = !appState.extensions[ext.id].enabled;
+          appState.extensions[ext.id].enabled = nextEnabled;
+          if (nextEnabled && plugin) {
             const hasMountedSlot = (appState.columns || []).some((c) =>
               (c.slots || []).some((s) => s.extensionId === ext.id)
             );
             if (!hasMountedSlot) {
               const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-              const defaultSize = plugin.fixedSize || ext.defaultSize || plugin.defaultSize || "half";
+              const defaultSize = plugin.fixedSize || ext.meta.defaultSize || plugin.defaultSize || "half";
               const newSlot = {
                 id: `slot-${uid}`,
                 extensionId: ext.id,
@@ -2383,7 +2426,7 @@ function renderFlyoutContent() {
               }
             }
           }
-          saveState(`${ext.name} ${ext.enabled ? "enabled" : "disabled"}`);
+          saveState(`${ext.name} ${nextEnabled ? "enabled" : "disabled"}`);
         };
         toggleEl.addEventListener("click", toggleExt);
         toggleEl.addEventListener("keydown", (e) => {
@@ -2914,9 +2957,9 @@ function renderFlyoutContent() {
     }
   } else if (mode === "add-column" || mode === "fill-half") {
     const isHalfFill = mode === "fill-half";
-    const availableExts = Object.values(appState.extensions).filter((ext) => {
+    const availableExts = getRegisteredExtensionsList().filter((ext) => {
       if (!ext.enabled) return false;
-      const plugin = ExtensionRegistry.get(ext.id);
+      const plugin = ext.plugin;
       if (isHalfFill && plugin && plugin.fixedSize === "double") return false;
       return true;
     });
@@ -2972,7 +3015,7 @@ function renderFlyoutContent() {
     }
 
     availableExts.forEach((ext) => {
-      const plugin = ExtensionRegistry.get(ext.id);
+      const plugin = ext.plugin;
       const isDoubleOnly = plugin && plugin.fixedSize === "double";
       const singletonAlreadyActive =
         plugin && !plugin.allowMultiple && isExtensionMountedOnPanorama(ext.id);

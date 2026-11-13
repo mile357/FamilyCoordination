@@ -90,6 +90,8 @@
   --radius-card: 10px;
   --radius-btn: 9999px;
   --radius-input: 16px;
+  --radius-badge: 9999px;
+  --radius-chip: 9999px;
   --radius-pill: 9999px;
   --radius-checkbox: 6px;
 
@@ -144,8 +146,8 @@
 [data-theme-id="lcars"] .panorama-brand {
   background: var(--accent);
   color: #000000;
-  padding: 6px 20px 6px 26px;
-  border-radius: 9999px 10px 10px 28px;
+  padding: 6px 20px 6px 24px;
+  border-radius: 9999px;
   gap: 14px;
   align-items: center;
   min-height: 44px;
@@ -394,6 +396,61 @@
 [data-theme-id="lcars"] .metro-checkbox.checked {
   background: var(--slot-accent, var(--accent));
   color: #000000;
+}
+
+[data-theme-id="lcars"] .cal-chip {
+  border: 1.5px solid var(--cal-color, var(--accent));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--cal-color, var(--accent)) 12%, #090b12);
+  padding: 4px 8px 4px 10px;
+  min-height: 34px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+[data-theme-id="lcars"] .cal-chip .chip-toggle-area::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: var(--cal-color, var(--accent));
+  flex-shrink: 0;
+}
+
+[data-theme-id="lcars"] .cal-chip .chip-toggle-area strong {
+  color: var(--lcars-gold);
+  font-weight: 700;
+}
+
+[data-theme-id="lcars"] .cal-chip.hidden-cal {
+  opacity: 0.42;
+  background: #06070b;
+  border-style: dashed;
+}
+
+[data-theme-id="lcars"] .cal-chip .chip-remove-btn {
+  border-radius: 9999px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 5px;
+  color: var(--text-secondary);
+}
+
+[data-theme-id="lcars"] .cal-chip .chip-remove-btn:hover {
+  background: rgba(238, 85, 85, 0.2);
+  color: var(--danger-text);
+}
+
+[data-theme-id="lcars"] .weekday-chip {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: 9999px;
 }
 
 [data-theme-id="lcars"] .metro-list-item,
