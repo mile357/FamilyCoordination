@@ -74,6 +74,14 @@ def _now_token():
 
 
 def get_lan_origin():
+    env_origin = (os.environ.get("PUBLIC_ORIGIN") or os.environ.get("COOLIFY_URL") or "").strip()
+    if env_origin:
+        first_url = env_origin.split(",", 1)[0].strip().rstrip("/")
+        if first_url:
+            if not first_url.startswith(("http://", "https://")):
+                first_url = f"http://{first_url}"
+            return first_url
+
     now_ts = time.time()
     cached = _LAN_ORIGIN_CACHE.get("origin")
     if cached and (now_ts - _LAN_ORIGIN_CACHE.get("ts", 0.0) < _LAN_ORIGIN_TTL):

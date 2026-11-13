@@ -7,8 +7,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Create a standard non-root user (UID 1000 matches default Linux/Ubuntu/Pi users)
-RUN addgroup -g 1000 hubgroup && \
+# Install tzdata (required by Python's zoneinfo for .ics calendar timezones and TZ env var)
+# and create a standard non-root user (UID 1000 matches default Linux/Ubuntu/Pi users)
+RUN apk add --no-cache tzdata && \
+    addgroup -g 1000 hubgroup && \
     adduser -u 1000 -G hubgroup -s /bin/sh -D hubuser && \
     mkdir -p /app/data /app/public
 
