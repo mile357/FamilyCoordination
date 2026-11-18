@@ -1,0 +1,34 @@
+{
+  "id": "bauhaus",
+  "name": "Bauhaus",
+  "description": "Weimar & Dessau modernist grid with primary red, cobalt blue, and cadmium yellow accents, stark geometric rules, and Jost sans typography.",
+  "author": "Family Hub",
+  "order": 15,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#D92B2B",
+  "accents": [
+    { "name": "Bauhaus Red", "hex": "#D92B2B" },
+    { "name": "Cobalt Blue", "hex": "#1A4BB8" },
+    { "name": "Cadmium Yellow", "hex": "#E6A800" },
+    { "name": "Modernist Teal", "hex": "#0F766E" },
+    { "name": "Weimar Ink", "hex": "#1A1A1A" }
+  ],
+  "extensionAccents": {
+    "calendar": "#1A4BB8",
+    "meals": "#D92B2B",
+    "groceries": "#257A4B",
+    "chores": "#E6A800",
+    "notes": "#6B3FA0",
+    "task-checklist": "#0F766E"
+  },
+  "metaThemeColor": {
+    "light": "#F2EDE2",
+    "dark": "#141413"
+  },
+  "preview": {
+    "light": { "canvas": "#F2EDE2", "tile": "#FAF7F0", "accent": "#D92B2B" },
+    "dark": { "canvas": "#141413", "tile": "#1C1C1A", "accent": "#D92B2B" }
+  }
+}

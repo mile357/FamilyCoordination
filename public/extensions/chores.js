@@ -3,7 +3,7 @@
  * Supports multiple independent instances (e.g., per family member),
  * three pivots ("checklist" for repeating weekday chores, "one-off" for single tasks,
  * and "history" for a 7-day log of completed tasks and undone daily chores),
- * inline pencil-icon editing/deletion, and a 3-minute idle "attract mode" pivot rotator.
+ * inline pencil-icon editing/deletion, and host-coordinated attract-mode pivot rotation.
  */
 
 const WEEKDAYS = [
@@ -29,7 +29,6 @@ function getSlotUi(slotId) {
       editingChoreId: null,
       animatePivot: false,
       transitioning: false,
-      nextRotateAt: 0,
     });
   }
   return slotUiMap.get(slotId);
@@ -232,73 +231,6 @@ function normalizeChoresList(chores, todayStr) {
   return mutated;
 }
 
-// ============================================================================
-// 3-MINUTE IDLE "ATTRACT MODE" PIVOT ROTATOR (PER-INSTANCE RANDOMIZED STAGGER)
-// ============================================================================
-const IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
-const ATTRACT_TICK_MS = 1000; // Check per-slot schedules every 1s
-let lastUserActivityMs = Date.now();
-let attractWatcherStarted = false;
-const activeSlotRenderers = new Map(); // slotId -> () => void
-
-function ensureAttractModeWatcher() {
-  if (attractWatcherStarted || typeof window === "undefined") return;
-  attractWatcherStarted = true;
-
-  const markActivity = () => {
-    lastUserActivityMs = Date.now();
-    // Reset per-slot attract schedules so next time idle begins, each instance gets a fresh random delay
-    slotUiMap.forEach((ui) => {
-      ui.nextRotateAt = 0;
-    });
-  };
-
-  ["pointerdown", "mousemove", "keydown", "wheel", "touchstart"].forEach((evt) => {
-    window.addEventListener(evt, markActivity, { passive: true });
-  });
-
-  setInterval(() => {
-    if (document.visibilityState === "hidden") return;
-    const now = Date.now();
-    if (now - lastUserActivityMs < IDLE_THRESHOLD_MS) return;
-
-    // Do not rotate if an input is focused or a flyout is open
-    const activeTag = document.activeElement && document.activeElement.tagName;
-    if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
-    const flyout = document.getElementById("flyoutBackdrop");
-    if (flyout && flyout.classList.contains("open")) return;
-
-    activeSlotRenderers.forEach((rerenderSlot, slotId) => {
-      const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(slotId)}"]`);
-      if (!slotEl) {
-        activeSlotRenderers.delete(slotId);
-        slotUiMap.delete(slotId);
-        return;
-      }
-      if (slotEl.classList.contains("arrange-wireframe")) return;
-      const drawerEl = slotEl.querySelector(".slot-command-drawer.open");
-      if (drawerEl) return;
-
-      const ui = getSlotUi(slotId);
-      if (ui.editingChoreId || ui.transitioning) return;
-
-      // When attract mode first activates, assign each widget instance its own random initial delay (0.5s – 9s)
-      if (!ui.nextRotateAt) {
-        ui.nextRotateAt = now + 500 + Math.floor(Math.random() * 8500);
-        return;
-      }
-
-      if (now >= ui.nextRotateAt) {
-        // Schedule next rotation with per-instance random cadence (11s – 17s)
-        ui.nextRotateAt = now + 11000 + Math.floor(Math.random() * 6000);
-        const curIdx = PIVOT_ORDER.indexOf(ui.pivot);
-        const nextPivot = PIVOT_ORDER[(curIdx + 1) % PIVOT_ORDER.length];
-        switchPivotAnimated(slotId, nextPivot, rerenderSlot);
-      }
-    });
-  }, ATTRACT_TICK_MS);
-}
-
 export default {
   id: "chores",
   order: 40,
@@ -310,6 +242,18 @@ export default {
   defaultSize: "half",
   infoText:
     "Add repeating weekday chores to 'checklist', single tasks to 'one-off', or review the past 7 days in 'history'. After 3 minutes of inactivity, pivots rotate automatically.",
+  onAttractStep(ctx) {
+    const ui = getSlotUi(ctx.slot.id);
+    if (ui.editingChoreId || ui.transitioning) {
+      return { nextDelayMs: 3000 };
+    }
+    const curIdx = PIVOT_ORDER.indexOf(ui.pivot);
+    const nextPivot = PIVOT_ORDER[(curIdx + 1) % PIVOT_ORDER.length];
+    switchPivotAnimated(ctx.slot.id, nextPivot, ctx.renderSlotOnly);
+    return {
+      nextDelayMs: 11000 + Math.floor(Math.random() * 6500),
+    };
+  },
   defaultState: {
     chores: [
       {
@@ -461,9 +405,7 @@ export default {
   },
 
   renderSlot(ctx) {
-    ensureAttractModeWatcher();
     const { slot, appState, saveState, renderSlotOnly, escapeHtml } = ctx;
-    activeSlotRenderers.set(slot.id, renderSlotOnly);
     const sid = escapeHtml(slot.id);
     const selId = CSS.escape(slot.id);
 

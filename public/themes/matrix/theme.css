@@ -1,0 +1,331 @@
+/*
+ * Matrix Terminal Theme — CRT Phosphor Operator Console (Dark Only)
+ * Monospace terminal typography, faint CRT scanlines, sharp phosphor bracket corners,
+ * and calm high-contrast mint-phosphor body text for effortless daily reading.
+ */
+
+@font-face {
+  font-family: "Share Tech Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/share-tech-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-600.woff2") format("woff2");
+}
+
+[data-theme-id="matrix"] {
+  --font-display: "Share Tech Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-body: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "IBM Plex Mono", "Share Tech Mono", ui-monospace, Menlo, monospace;
+
+  --title-size: 32px;
+  --title-weight: 400;
+  --title-letter-spacing: 0.08em;
+  --title-tracking: 0.08em;
+  --slot-title-size: 20px;
+  --slot-title-weight: 400;
+  --slot-title-letter-spacing: 0.06em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 34px;
+  --clock-weight: 400;
+  --date-size: 14px;
+  --date-weight: 400;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #010502;
+  --bg-canvas-image:
+    radial-gradient(ellipse 70% 55% at 50% 10%, rgba(0, 255, 65, 0.07) 0%, transparent 70%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 255, 65, 0.025) 0px,
+      rgba(0, 255, 65, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  --bg-header: rgba(2, 9, 4, 0.92);
+  --bg-surface: #041007;
+  --bg-surface-elevated: #081c0d;
+  --bg-tile: #041007;
+  --bg-tile-hover: #0a2411;
+  --bg-tile-subtle: rgba(0, 255, 65, 0.045);
+  --bg-appbar: #030b05;
+  --bg-input: #010602;
+  --bg-flyout: #030c05;
+  --bg-backdrop: rgba(0, 4, 1, 0.80);
+  --bg-wireframe-overlay: rgba(1, 5, 2, 0.88);
+
+  --text-primary: #d8ffe2;
+  --text-secondary: #76d48b;
+  --text-muted: #4b9c5d;
+
+  --border-color: rgba(0, 255, 65, 0.25);
+  --border-strong: rgba(0, 255, 65, 0.72);
+
+  --danger-color: #ff2a4b;
+  --danger-text: #ff7086;
+  --success-color: #00ff41;
+  --warning-color: #ffb000;
+  --info-color: #00e5ff;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 11%, transparent);
+
+  --radius-slot: 0px;
+  --radius-card: 0px;
+  --radius-btn: 0px;
+  --radius-input: 0px;
+  --radius-pill: 0px;
+  --radius-badge: 0px;
+  --radius-chip: 0px;
+  --radius-checkbox: 0px;
+  --radius-toggle: 0px;
+  --radius-toggle-thumb: 0px;
+
+  --shadow-slot: 0 0 24px rgba(0, 255, 65, 0.05);
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 32px rgba(0, 0, 0, 0.85);
+
+  --slot-border: 1px solid rgba(0, 255, 65, 0.26);
+  --slot-border-top: 1px solid rgba(0, 255, 65, 0.45);
+  --card-border: 1px solid rgba(0, 255, 65, 0.16);
+  --header-border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+
+  --scrollbar-track: #020804;
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 45%, rgba(0, 255, 65, 0.15));
+  --scrollbar-thumb-hover: var(--accent);
+}
+
+/* "The Construct" Infinite White Loading Program Light Variant */
+[data-theme-id="matrix"][data-theme="light"] {
+  --bg-canvas: #f4f7f4;
+  --bg-canvas-image:
+    radial-gradient(ellipse 80% 55% at 50% 12%, rgba(255, 255, 255, 0.95) 0%, transparent 72%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 100, 35, 0.03) 0px,
+      rgba(0, 100, 35, 0.03) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+  --bg-header: rgba(244, 247, 244, 0.94);
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fbf8;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #f2f8f3;
+  --bg-tile-subtle: rgba(0, 110, 40, 0.045);
+  --bg-appbar: #e8efe9;
+  --bg-input: #ffffff;
+  --bg-flyout: #fafcfa;
+  --bg-backdrop: rgba(10, 20, 13, 0.35);
+  --bg-wireframe-overlay: rgba(244, 247, 244, 0.90);
+
+  --text-primary: #0a140d;
+  --text-secondary: #2b4532;
+  --text-muted: #4b6b54;
+
+  --border-color: rgba(0, 110, 40, 0.24);
+  --border-strong: rgba(0, 122, 40, 0.72);
+
+  --danger-color: #c91835;
+  --danger-text: #a8112a;
+  --success-color: #007a28;
+  --warning-color: #9e6b00;
+  --info-color: #006c80;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --shadow-slot: 0 4px 18px rgba(0, 35, 12, 0.06);
+  --shadow-flyout: -8px 0 28px rgba(0, 30, 10, 0.14);
+
+  --slot-border: 1px solid rgba(0, 110, 40, 0.26);
+  --slot-border-top: 1px solid rgba(0, 122, 40, 0.50);
+  --card-border: 1px solid rgba(0, 110, 40, 0.16);
+  --header-border-bottom: 1px solid rgba(0, 122, 40, 0.36);
+
+  --scrollbar-track: #e8efe9;
+  --scrollbar-thumb: rgba(0, 110, 40, 0.32);
+  --scrollbar-thumb-hover: #007a28;
+}
+
+[data-theme-id="matrix"][data-theme="light"] .panorama-title,
+[data-theme-id="matrix"][data-theme="light"] .clock-time,
+[data-theme-id="matrix"][data-theme="light"] .slot-title {
+  text-shadow: none;
+}
+
+[data-theme-id="matrix"][data-theme="light"] .metro-slot:not(.arrange-wireframe) {
+  box-shadow: var(--shadow-slot);
+}
+
+[data-theme-id="matrix"][data-theme="light"] .slot-title::before {
+  color: var(--slot-accent-text, var(--accent-text));
+}
+
+[data-theme-id="matrix"] .panorama-title {
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+[data-theme-id="matrix"] .clock-time,
+[data-theme-id="matrix"] .clock-date,
+[data-theme-id="matrix"] .hour-label,
+[data-theme-id="matrix"] .ev-time {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="matrix"] .clock-time {
+  color: var(--accent-text, var(--accent));
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+/* Phosphor Terminal Corner Brackets & CRT Inner Vignette */
+[data-theme-id="matrix"] .metro-slot:not(.arrange-wireframe) {
+  padding: 14px 16px;
+  background-color: var(--bg-tile);
+  background-image:
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent))),
+    linear-gradient(var(--slot-accent, var(--accent)), var(--slot-accent, var(--accent)));
+  background-repeat: no-repeat;
+  background-size:
+    12px 2px, 2px 12px,
+    12px 2px, 2px 12px,
+    12px 2px, 2px 12px,
+    12px 2px, 2px 12px;
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+  box-shadow:
+    inset 0 0 24px color-mix(in srgb, var(--slot-accent, var(--accent)) 5%, transparent),
+    var(--shadow-slot);
+}
+
+[data-theme-id="matrix"] .slot-header {
+  border-bottom: 1px dashed color-mix(in srgb, var(--slot-accent, var(--accent)) 42%, transparent);
+  padding: 4px 2px 10px 2px;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="matrix"] .slot-title {
+  color: var(--slot-accent-text, var(--accent-text));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--slot-accent, var(--accent)) 30%, transparent);
+}
+
+[data-theme-id="matrix"] .slot-title::before {
+  content: ">_ ";
+  color: var(--slot-accent, var(--accent));
+  opacity: 0.8;
+}
+
+[data-theme-id="matrix"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="matrix"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border-color));
+  padding: 7px 14px;
+}
+
+[data-theme-id="matrix"] .metro-btn:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-theme-id="matrix"] .metro-btn.accent {
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+[data-theme-id="matrix"] .metro-input {
+  border: 1px solid var(--border-color);
+  font-size: 13.5px;
+}
+
+[data-theme-id="matrix"] .metro-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+[data-theme-id="matrix"] .metro-checkbox {
+  border: 1.5px solid color-mix(in srgb, var(--slot-accent, var(--accent)) 70%, var(--border-strong));
+}
+
+[data-theme-id="matrix"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  gap: 8px;
+}
+
+[data-theme-id="matrix"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="matrix"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+  padding: 6px 8px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="matrix"] .settings-pivots .pivot-tab {
+  font-size: 15px;
+}
+
+[data-theme-id="matrix"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--accent-text));
+  background: color-mix(in srgb, var(--slot-accent, var(--accent)) 10%, transparent);
+  border-bottom-color: var(--slot-accent, var(--accent));
+}
+
+[data-theme-id="matrix"] .metro-toggle {
+  border: 1.5px solid var(--border-strong);
+}
+
+[data-theme-id="matrix"] .metro-flyout {
+  border-left: 1px solid var(--border-strong);
+}
+
+[data-theme-id="matrix"] .toast-banner {
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-theme-id="matrix"] .pocket-header {
+  border-bottom: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  padding-bottom: 8px;
+}

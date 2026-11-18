@@ -1,0 +1,34 @@
+{
+  "id": "starfield",
+  "name": "Starfield",
+  "description": "NASA-punk Constellation UI with the 4-band spectrum ribbon, Chakra Petch aerospace typography, deep-space cockpit (Dark), and Chronomark ceramic (Light).",
+  "author": "Family Hub",
+  "order": 20,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#2D68C4",
+  "accents": [
+    { "name": "Constellation Blue", "hex": "#2D68C4" },
+    { "name": "Starborn Cyan", "hex": "#38BDF8" },
+    { "name": "Chronomark Gold", "hex": "#F2B705" },
+    { "name": "Vasco Orange", "hex": "#F58025" },
+    { "name": "Crimson Fleet", "hex": "#E03C31" }
+  ],
+  "extensionAccents": {
+    "calendar": "#2D68C4",
+    "meals": "#F58025",
+    "groceries": "#2EA070",
+    "chores": "#F2B705",
+    "notes": "#38BDF8",
+    "task-checklist": "#E03C31"
+  },
+  "metaThemeColor": {
+    "dark": "#0A0F18",
+    "light": "#ECEAE2"
+  },
+  "preview": {
+    "dark": { "canvas": "#0A0F18", "tile": "#121A28", "accent": "#38BDF8" },
+    "light": { "canvas": "#ECEAE2", "tile": "#F8F7F2", "accent": "#2D68C4" }
+  }
+}

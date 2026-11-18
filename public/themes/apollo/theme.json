@@ -1,0 +1,34 @@
+{
+  "id": "apollo",
+  "name": "Apollo Mission Control",
+  "description": "1969 NASA flight-deck console with Barlow Condensed instrument labels, IBM Plex Mono telemetry, and annunciator status lights.",
+  "author": "Family Hub",
+  "order": 18,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#0B5394",
+  "accents": [
+    { "name": "NASA Flight Blue", "hex": "#0B5394" },
+    { "name": "Capsule Amber", "hex": "#D97706" },
+    { "name": "Master Alarm Red", "hex": "#C81E1E" },
+    { "name": "Telemetry Green", "hex": "#15803D" },
+    { "name": "Apollo Slate", "hex": "#475569" }
+  ],
+  "extensionAccents": {
+    "calendar": "#0B5394",
+    "meals": "#C81E1E",
+    "groceries": "#15803D",
+    "chores": "#D97706",
+    "notes": "#475569",
+    "task-checklist": "#0284C7"
+  },
+  "metaThemeColor": {
+    "light": "#E2E5E8",
+    "dark": "#0D1117"
+  },
+  "preview": {
+    "light": { "canvas": "#E2E5E8", "tile": "#F4F6F8", "accent": "#0B5394" },
+    "dark": { "canvas": "#0D1117", "tile": "#151B23", "accent": "#38BDF8" }
+  }
+}

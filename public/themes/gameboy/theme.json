@@ -1,0 +1,34 @@
+{
+  "id": "gameboy",
+  "name": "Game Boy / 16-Bit",
+  "description": "Retro handheld dot-matrix DMG olive LCD (Light) and Atomic Purple 16-bit console (Dark) with Silkscreen pixel type and A/B button shadows.",
+  "author": "Family Hub",
+  "order": 16,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#9B1B5A",
+  "accents": [
+    { "name": "DMG Magenta", "hex": "#9B1B5A" },
+    { "name": "Atomic Purple", "hex": "#8B5CF6" },
+    { "name": "Cartridge Teal", "hex": "#0D9488" },
+    { "name": "16-Bit Gold", "hex": "#D97706" },
+    { "name": "Pixel Blue", "hex": "#2563EB" }
+  ],
+  "extensionAccents": {
+    "calendar": "#2563EB",
+    "meals": "#9B1B5A",
+    "groceries": "#15803D",
+    "chores": "#D97706",
+    "notes": "#8B5CF6",
+    "task-checklist": "#0D9488"
+  },
+  "metaThemeColor": {
+    "light": "#C4CFA1",
+    "dark": "#161224"
+  },
+  "preview": {
+    "light": { "canvas": "#C4CFA1", "tile": "#DCE4C2", "accent": "#9B1B5A" },
+    "dark": { "canvas": "#161224", "tile": "#201B34", "accent": "#A78BFA" }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "skyrim",
+  "name": "Skyrim",
+  "description": "Nordic forged-iron HUD (Dark) and aged Elder Scroll parchment tome (Light) with carved serif type, runic diamond filigree, and arcane glow.",
+  "author": "Family Hub",
+  "order": 12,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#5EC2D6",
+  "accents": [
+    { "name": "Magicka Frost", "hex": "#5EC2D6" },
+    { "name": "Dragon Gold", "hex": "#D4AF37" },
+    { "name": "Daedric Crimson", "hex": "#C93B3B" },
+    { "name": "Stamina Emerald", "hex": "#45A863" },
+    { "name": "Soul Gem Violet", "hex": "#9E7BFF" }
+  ],
+  "extensionAccents": {
+    "calendar": "#5EC2D6",
+    "meals": "#D97724",
+    "groceries": "#45A863",
+    "chores": "#D4AF37",
+    "notes": "#9E7BFF",
+    "task-checklist": "#C93B3B"
+  },
+  "metaThemeColor": {
+    "dark": "#090B0D",
+    "light": "#E3D3B4"
+  },
+  "preview": {
+    "dark": { "canvas": "#090B0D", "tile": "#12151A", "accent": "#5EC2D6" },
+    "light": { "canvas": "#E3D3B4", "tile": "#F2E6CC", "accent": "#1F6E82" }
+  }
+}

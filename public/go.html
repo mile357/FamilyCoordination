@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>grocery list — family hub</title>
   <meta name="theme-color" content="#000000" />
-  <link rel="stylesheet" href="/styles.css?v=42" />
+  <link rel="stylesheet" href="/styles.css?v=44" />
   <script>
     (function () {
       try {
@@ -26,7 +26,7 @@
           var link = document.createElement("link");
           link.id = "activeThemeStylesheet";
           link.rel = "stylesheet";
-          link.href = cached.stylesheetUrl + "?v=42";
+          link.href = cached.stylesheetUrl + "?v=44";
           document.head.appendChild(link);
         }
       } catch (e) {}
@@ -83,9 +83,12 @@
 </head>
 <body>
   <header class="pocket-header">
-    <h1 class="pocket-title">grocery list</h1>
+    <h1 class="pocket-title" id="pocketTitle">grocery list</h1>
     <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:6px 12px; font-size:13px;" id="btnCopyNotes">
       copy for notes
+    </button>
+    <button class="metro-btn accent" style="--accent:var(--slot-accent, #00ABA9); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:6px 12px; font-size:13px; display:none;" id="btnSyncCalendars">
+      ↻ sync feeds
     </button>
   </header>
 
@@ -94,23 +97,56 @@
     <span id="statusText">connecting to family hub...</span>
   </div>
 
-  <div class="quick-form" style="margin-bottom:14px;">
-    <input class="metro-input" id="mobileGrocInput" placeholder="add grocery item..." autocomplete="off" />
-    <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnMobileAdd">add</button>
-    <button class="metro-btn subtle" id="btnMobileClear" style="display:none;">clear</button>
-  </div>
+  <!-- GROCERY COMPANION SECTION -->
+  <section id="grocerySection">
+    <div class="quick-form" style="margin-bottom:14px;">
+      <input class="metro-input" id="mobileGrocInput" placeholder="add grocery item..." autocomplete="off" />
+      <button class="metro-btn accent" style="--accent:var(--slot-accent, #60A917); --accent-fg:var(--slot-accent-fg, #FFFFFF)" id="btnMobileAdd">add</button>
+      <button class="metro-btn subtle" id="btnMobileClear" style="display:none;">clear</button>
+    </div>
 
-  <div class="metro-list" id="mobileGrocList"></div>
+    <div class="metro-list" id="mobileGrocList"></div>
+  </section>
+
+  <!-- CALENDAR FEED SETUP COMPANION SECTION (?mode=calendar) -->
+  <section id="calendarSection" style="display:none;">
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px; line-height:1.4;">
+      Paste a read-only iCal (<code>.ics</code>) feed URL from Google Calendar or Microsoft Outlook to sync events directly to your kitchen display.
+    </p>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:18px; background:var(--bg-tile); padding:14px; border-left:4px solid var(--slot-accent, #00ABA9);">
+      <div style="display:flex; gap:8px;">
+        <input class="metro-input" id="mobileCalName" placeholder="calendar label (e.g. Work, Kids Sports)..." autocomplete="off" style="flex:1;" />
+        <select class="metro-input" id="mobileCalProvider" style="max-width:130px;">
+          <option value="google">Google</option>
+          <option value="microsoft">Microsoft</option>
+        </select>
+      </div>
+      <input class="metro-input" id="mobileCalUrl" placeholder="paste read-only iCal (.ics) feed URL..." autocomplete="off" />
+      <button class="metro-btn accent" style="--accent:var(--slot-accent, #00ABA9); --accent-fg:var(--slot-accent-fg, #FFFFFF); align-self:flex-end;" id="btnMobileConnectCal">
+        + connect feed
+      </button>
+    </div>
+
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:8px;">
+      connected feeds
+    </div>
+    <div class="metro-list" id="mobileCalList"></div>
+  </section>
 
   <div class="toast-banner" id="mobileToast"></div>
 
   <script>
     const CACHE_KEY = "metro_pocket_groceries_v1";
     const DIRTY_KEY = "metro_pocket_dirty_v1";
+    const DELETED_IDS_KEY = "metro_pocket_deleted_ids_v1";
     const THEME_KEY = "hub_active_theme_cache_v1";
     const LEGACY_THEME_KEY = "metro_pocket_theme_v1";
-    const THEME_ASSET_VERSION = "39";
+    const THEME_ASSET_VERSION = "44";
+    const IS_CALENDAR_MODE =
+      new URLSearchParams(window.location.search).get("mode") === "calendar" ||
+      window.location.hash === "#calendar";
     let groceries = [];
+    let calendars = [];
     let isOnlineWithHub = false;
     let isSyncing = false;
     let syncPending = false;
@@ -160,10 +196,12 @@
       const allowedModes = themeDef && Array.isArray(themeDef.modes) && themeDef.modes.length > 0 ? themeDef.modes : ["dark", "light"];
       const mode = allowedModes.includes(s.theme) ? s.theme : ((themeDef && themeDef.defaultMode) || allowedModes[0]);
       const accent = sanitizeHexColor(s.accentColor, (themeDef && themeDef.defaultAccent) || "#00ABA9");
+      const extKey = IS_CALENDAR_MODE ? "calendar" : "groceries";
+      const defaultExtHex = IS_CALENDAR_MODE ? "#00ABA9" : "#60A917";
       const slotAccent = sanitizeHexColor(
-        (themeDef && themeDef.extensionAccents && themeDef.extensionAccents.groceries) ||
-          (themeDef && themeDef.id === "metro" ? "#60A917" : accent),
-        "#60A917"
+        (themeDef && themeDef.extensionAccents && themeDef.extensionAccents[extKey]) ||
+          (themeDef && themeDef.id === "metro" ? defaultExtHex : accent),
+        defaultExtHex
       );
       const stylesheetUrl = (themeDef && themeDef.stylesheetUrl) || "";
       const metaColor = (themeDef && themeDef.metaThemeColor && themeDef.metaThemeColor[mode]) || (mode === "light" ? "#FFFFFF" : "#000000");
@@ -268,6 +306,52 @@
       }
     }
 
+    function getDeletedIdsSet() {
+      try {
+        const raw = localStorage.getItem(DELETED_IDS_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return new Set(Array.isArray(arr) ? arr : []);
+      } catch (e) {
+        return new Set();
+      }
+    }
+
+    function recordDeletedIds(ids) {
+      try {
+        const set = getDeletedIdsSet();
+        ids.forEach((id) => {
+          if (id) set.add(id);
+        });
+        localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...set]));
+      } catch (e) {}
+    }
+
+    function mergeGroceriesById(localList, remoteList, deletedIdsSet) {
+      const localArr = Array.isArray(localList) ? localList : [];
+      const remoteArr = Array.isArray(remoteList) ? remoteList : [];
+      const localById = new Map();
+      const localUncheckedNames = new Set();
+
+      localArr.forEach((item) => {
+        if (item && item.id) localById.set(item.id, item);
+        if (item && item.name && !item.checked) {
+          localUncheckedNames.add(String(item.name).trim().toLowerCase());
+        }
+      });
+
+      // Preserve items added on the kitchen hub while the phone was offline
+      const remoteAddedAtHome = [];
+      remoteArr.forEach((rem) => {
+        if (!rem || typeof rem !== "object" || !rem.id) return;
+        if (localById.has(rem.id) || deletedIdsSet.has(rem.id)) return;
+        const normName = String(rem.name || "").trim().toLowerCase();
+        if (normName && !rem.checked && localUncheckedNames.has(normName)) return;
+        remoteAddedAtHome.push(rem);
+      });
+
+      return [...remoteAddedAtHome, ...localArr];
+    }
+
     function saveLocalCache(markDirty = true) {
       try {
         localStorage.setItem(CACHE_KEY, JSON.stringify(groceries));
@@ -300,11 +384,24 @@
           await applyPocketThemeFromSettings(state.settings);
         }
 
+        if (IS_CALENDAR_MODE) {
+          calendars = Array.isArray(state.calendars) ? state.calendars : [];
+          setSyncIndicator(true, "connected to kitchen hub — calendar feed setup");
+          renderCalendarFeeds();
+          return;
+        }
+
         const hasDirtyLocal = localStorage.getItem(DIRTY_KEY) === "1";
         if (hasDirtyLocal) {
           const snapshotJson = JSON.stringify(groceries);
           const groceriesToPush = JSON.parse(snapshotJson);
-          state.groceries = groceriesToPush;
+          const deletedIdsSet = getDeletedIdsSet();
+          let mergedGroceries = mergeGroceriesById(
+            groceriesToPush,
+            state.groceries,
+            deletedIdsSet
+          );
+          state.groceries = mergedGroceries;
 
           let postRes = await fetch("/api/state", {
             method: "POST",
@@ -321,7 +418,12 @@
             if (latestState && latestState.settings) {
               await applyPocketThemeFromSettings(latestState.settings);
             }
-            latestState.groceries = groceriesToPush;
+            mergedGroceries = mergeGroceriesById(
+              groceriesToPush,
+              latestState.groceries,
+              deletedIdsSet
+            );
+            latestState.groceries = mergedGroceries;
             postRes = await fetch("/api/state", {
               method: "POST",
               headers: {
@@ -334,7 +436,10 @@
 
           if (postRes.ok) {
             if (JSON.stringify(groceries) === snapshotJson) {
+              groceries = mergedGroceries;
               localStorage.removeItem(DIRTY_KEY);
+              localStorage.removeItem(DELETED_IDS_KEY);
+              saveLocalCache(false);
             } else {
               syncPending = true;
             }
@@ -349,9 +454,15 @@
       } catch (e) {
         setSyncIndicator(
           false,
-          "offline store mode — check-offs saved on phone & sync when back on home wi-fi"
+          IS_CALENDAR_MODE
+            ? "offline — connect to home wi-fi to manage calendar feeds"
+            : "offline store mode — check-offs saved on phone & sync when back on home wi-fi"
         );
-        renderList();
+        if (IS_CALENDAR_MODE) {
+          renderCalendarFeeds();
+        } else {
+          renderList();
+        }
       } finally {
         isSyncing = false;
         if (syncPending) {
@@ -418,6 +529,7 @@
         });
 
         row.querySelector("button").addEventListener("click", () => {
+          recordDeletedIds([item.id]);
           groceries = groceries.filter((g) => g.id !== item.id);
           pushChangeToHub();
         });
@@ -449,6 +561,8 @@
     });
 
     document.getElementById("btnMobileClear").addEventListener("click", () => {
+      const removedIds = groceries.filter((g) => g.checked).map((g) => g.id);
+      recordDeletedIds(removedIds);
       groceries = groceries.filter((g) => !g.checked);
       pushChangeToHub();
     });
@@ -472,8 +586,189 @@
       }
     });
 
+    async function mutateCalendarStateOnHub(mutatorFn, toastMsg, triggerIcsSync = false) {
+      try {
+        const res = await fetch("/api/state", { cache: "no-store" });
+        if (!res.ok) throw new Error("Hub unreachable");
+        let state = await res.json();
+        mutatorFn(state);
+
+        let postRes = await fetch("/api/state", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Expected-Updated-At": state._updatedAt || "",
+          },
+          body: JSON.stringify(state),
+        });
+
+        if (postRes.status === 409) {
+          const conflictData = await postRes.json();
+          state = (conflictData && conflictData.state) || state;
+          mutatorFn(state);
+          postRes = await fetch("/api/state", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Expected-Updated-At": state._updatedAt || "",
+            },
+            body: JSON.stringify(state),
+          });
+        }
+
+        if (!postRes.ok) throw new Error("Failed to save calendar state");
+        const savedData = await postRes.json();
+        if (savedData && savedData.state && Array.isArray(savedData.state.calendars)) {
+          calendars = savedData.state.calendars;
+        }
+        renderCalendarFeeds();
+        if (toastMsg) showMobileToast(toastMsg);
+
+        if (triggerIcsSync) {
+          const syncRes = await fetch("/api/sync-calendars", { method: "POST" });
+          const syncData = await syncRes.json();
+          if (syncData && syncData.ok) {
+            if (syncData.state && Array.isArray(syncData.state.calendars)) {
+              calendars = syncData.state.calendars;
+              renderCalendarFeeds();
+            }
+            showMobileToast(`Synced ${syncData.syncedFeeds} live calendar feed(s)`);
+          } else if (syncData && syncData.error) {
+            showMobileToast(syncData.error);
+          }
+        }
+      } catch (e) {
+        showMobileToast("Could not reach Family Hub on home Wi-Fi");
+      }
+    }
+
+    function renderCalendarFeeds() {
+      const listEl = document.getElementById("mobileCalList");
+      if (!listEl) return;
+      listEl.innerHTML = "";
+
+      if (!Array.isArray(calendars) || calendars.length === 0) {
+        listEl.innerHTML = `<div class="agenda-empty" style="padding:18px; background:var(--bg-tile);">no calendar feeds connected yet</div>`;
+        return;
+      }
+
+      calendars.forEach((cal) => {
+        const color = sanitizeHexColor(cal.color, "#00ABA9");
+        const row = document.createElement("div");
+        row.className = "metro-list-item";
+        row.style.borderLeft = `5px solid ${color}`;
+        row.style.opacity = cal.visible === false ? "0.45" : "1";
+        row.innerHTML = `
+          <div class="check-row" role="checkbox" aria-checked="${cal.visible !== false}" tabindex="0">
+            <div class="metro-checkbox ${cal.visible !== false ? "checked" : ""}" style="${
+              cal.visible !== false ? `background:${color}; border-color:${color}; color:${getPocketContrastColor(color)};` : ""
+            }">${cal.visible !== false ? "✓" : ""}</div>
+            <div class="item-text-wrap">
+              <span class="item-primary">${escapeHtml(cal.name)}</span>
+              <span class="item-secondary">${escapeHtml((cal.provider || "ical").toUpperCase())} · last sync: ${escapeHtml(cal.lastSync || "just now")}</span>
+            </div>
+          </div>
+          <button class="slot-icon-btn" title="Disconnect feed">✕</button>
+        `;
+
+        const checkRow = row.querySelector(".check-row");
+        const toggleVis = () => {
+          mutateCalendarStateOnHub((st) => {
+            const target = (st.calendars || []).find((c) => c.id === cal.id);
+            if (target) target.visible = target.visible === false;
+          }, `${cal.name} ${cal.visible === false ? "shown" : "hidden"}`);
+        };
+        checkRow.addEventListener("click", toggleVis);
+        checkRow.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleVis();
+          }
+        });
+
+        row.querySelector("button.slot-icon-btn").addEventListener("click", () => {
+          mutateCalendarStateOnHub((st) => {
+            st.calendars = (st.calendars || []).filter((c) => c.id !== cal.id);
+            st.events = (st.events || []).filter((ev) => ev.calendarId !== cal.id);
+          }, `Disconnected ${cal.name}`);
+        });
+
+        listEl.appendChild(row);
+      });
+    }
+
+    document.getElementById("btnMobileConnectCal").addEventListener("click", () => {
+      const nameInp = document.getElementById("mobileCalName");
+      const provSel = document.getElementById("mobileCalProvider");
+      const urlInp = document.getElementById("mobileCalUrl");
+      const name = nameInp.value.trim();
+      const provider = provSel.value;
+      const url = urlInp.value.trim();
+      if (!name || !url) {
+        showMobileToast("Enter both a calendar label and a read-only .ics URL");
+        return;
+      }
+      const palette = ["#00ABA9", "#1BA1E2", "#FA6800", "#D80073", "#60A917", "#6A00FF"];
+      nameInp.value = "";
+      urlInp.value = "";
+      mutateCalendarStateOnHub(
+        (st) => {
+          if (!Array.isArray(st.calendars)) st.calendars = [];
+          const color = palette[st.calendars.length % palette.length];
+          st.calendars.push({
+            id: "cal-" + Date.now(),
+            name,
+            provider,
+            color,
+            visible: true,
+            readOnly: true,
+            icsUrl: url,
+            account: `${provider} read-only .ics`,
+            lastSync: "Just now",
+          });
+        },
+        `Connected ${name}`,
+        url.startsWith("http://") || url.startsWith("https://") || url.startsWith("webcal://")
+      );
+    });
+
+    document.getElementById("btnSyncCalendars").addEventListener("click", async () => {
+      showMobileToast("Syncing calendar feeds...");
+      try {
+        const res = await fetch("/api/sync-calendars", { method: "POST" });
+        const data = await res.json();
+        if (data && data.ok) {
+          if (data.state && Array.isArray(data.state.calendars)) {
+            calendars = data.state.calendars;
+            renderCalendarFeeds();
+          }
+          showMobileToast(`Synced ${data.syncedFeeds} live calendar feed(s)`);
+        } else {
+          showMobileToast((data && data.error) || "Could not sync calendar feeds");
+        }
+      } catch (e) {
+        showMobileToast("Could not reach Family Hub");
+      }
+    });
+
+    if (IS_CALENDAR_MODE) {
+      document.title = "calendar feeds — family hub";
+      document.getElementById("pocketTitle").textContent = "calendar feeds";
+      document.getElementById("btnCopyNotes").style.display = "none";
+      document.getElementById("btnSyncCalendars").style.display = "inline-flex";
+      document.getElementById("grocerySection").style.display = "none";
+      document.getElementById("calendarSection").style.display = "block";
+    }
+
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register(`/sw.js?v=${THEME_ASSET_VERSION}`).catch(() => {});
+    }
     loadInitialSeedFromHashOrCache();
-    renderList();
+    if (IS_CALENDAR_MODE) {
+      renderCalendarFeeds();
+    } else {
+      renderList();
+    }
     syncWithHub();
     window.addEventListener("online", syncWithHub);
     document.addEventListener("visibilitychange", () => {

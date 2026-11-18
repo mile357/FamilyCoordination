@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "42";
+const ASSET_VERSION = "44";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -19,7 +19,6 @@ const DEFAULT_SETTINGS = {
   themeId: "metro",
   themeAccents: {},
   zipCode: "98052",
-  kioskMode: false,
   keepScreenAwake: true,
 };
 
@@ -227,6 +226,30 @@ function createScopedAppState(slotConfig, plugin) {
       }
       target[prop] = value;
       return true;
+    },
+    has(target, prop) {
+      if (typeof prop === "string" && scopedKeys.has(prop)) {
+        return prop in slotBucket;
+      }
+      return prop in target;
+    },
+    deleteProperty(target, prop) {
+      if (typeof prop === "string" && scopedKeys.has(prop)) {
+        delete slotBucket[prop];
+        return true;
+      }
+      delete target[prop];
+      return true;
+    },
+    ownKeys(target) {
+      return Array.from(new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(slotBucket)]));
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop === "string" && scopedKeys.has(prop)) {
+        const desc = Object.getOwnPropertyDescriptor(slotBucket, prop);
+        if (desc) return { ...desc, configurable: true };
+      }
+      return Object.getOwnPropertyDescriptor(target, prop);
     },
   });
 }
@@ -625,6 +648,9 @@ function createExtensionContext(slotConfig, colConfig) {
       appState = newState;
       syncExtensionsWithAppState();
       snapshotSyncedState(appState);
+      try {
+        localStorage.setItem("metro_family_hub_state", JSON.stringify(appState));
+      } catch (e) {}
     },
   };
 }
@@ -852,7 +878,10 @@ async function pollServerState() {
   if (!appState || isSavingState || savePending || isUserInteracting()) return;
 
   // If local state has unsynced edits (e.g. after recovering from offline), push first
-  if (getModifiedTopLevelKeys(appState).length > 0) {
+  if (
+    getModifiedTopLevelKeys(appState).length > 0 ||
+    getModifiedSlotDataKeys(appState).length > 0
+  ) {
     await persistStateToServer();
     return;
   }
@@ -866,7 +895,8 @@ async function pollServerState() {
       isSavingState ||
       savePending ||
       isUserInteracting() ||
-      getModifiedTopLevelKeys(appState).length > 0
+      getModifiedTopLevelKeys(appState).length > 0 ||
+      getModifiedSlotDataKeys(appState).length > 0
     ) {
       return;
     }
@@ -901,7 +931,8 @@ async function autoSyncCalendars() {
         !isSavingState &&
         !savePending &&
         !isUserInteracting() &&
-        getModifiedTopLevelKeys(appState).length === 0
+        getModifiedTopLevelKeys(appState).length === 0 &&
+        getModifiedSlotDataKeys(appState).length === 0
       ) {
         appState = data.state;
         syncExtensionsWithAppState();
@@ -1539,6 +1570,14 @@ function restoreViewportState(stage, snapshot) {
   }
 }
 
+function createExtensionErrorFallback(pluginName, sectionLabel = "widget") {
+  const errEl = document.createElement("div");
+  errEl.className = "agenda-empty";
+  errEl.style.padding = "12px";
+  errEl.textContent = `unable to render ${pluginName || "widget"} ${sectionLabel}`;
+  return errEl;
+}
+
 function renderSlotOnly(slotId) {
   if (!appState) return;
   const stage = document.getElementById("panoramaStage");
@@ -1567,9 +1606,16 @@ function renderSlotOnly(slotId) {
   const snapshot = captureViewportState(stage);
   const bodyEl = slotEl.querySelector(".slot-body");
   if (bodyEl) {
-    const ctx = createExtensionContext(foundSlot, foundCol);
-    bodyEl.innerHTML = "";
-    bodyEl.appendChild(plugin.renderSlot(ctx, foundCol));
+    try {
+      const ctx = createExtensionContext(foundSlot, foundCol);
+      const rendered = plugin.renderSlot(ctx, foundCol);
+      bodyEl.innerHTML = "";
+      if (rendered) bodyEl.appendChild(rendered);
+    } catch (err) {
+      console.error(`Error rendering extension "${foundSlot.extensionId}":`, err);
+      bodyEl.innerHTML = "";
+      bodyEl.appendChild(createExtensionErrorFallback(plugin.name || foundSlot.extensionId));
+    }
   }
   restoreViewportState(stage, snapshot);
 }
@@ -2099,11 +2145,25 @@ function renderAll() {
 
       const inlinePane = slotEl.querySelector(".slot-inline-pane");
       if (drawer.open && plugin.renderAddForm) {
-        inlinePane.appendChild(plugin.renderAddForm(ctx, ctx.closeDrawer));
+        try {
+          const formNode = plugin.renderAddForm(ctx, ctx.closeDrawer);
+          if (formNode) inlinePane.appendChild(formNode);
+        } catch (err) {
+          console.error(`Error rendering add form for "${slotConfig.extensionId}":`, err);
+          inlinePane.appendChild(
+            createExtensionErrorFallback(plugin.name || slotConfig.extensionId, "drawer")
+          );
+        }
       }
 
       const bodyEl = slotEl.querySelector(".slot-body");
-      bodyEl.appendChild(plugin.renderSlot(ctx, colConfig));
+      try {
+        const slotNode = plugin.renderSlot(ctx, colConfig);
+        if (slotNode) bodyEl.appendChild(slotNode);
+      } catch (err) {
+        console.error(`Error rendering slot for "${slotConfig.extensionId}":`, err);
+        bodyEl.appendChild(createExtensionErrorFallback(plugin.name || slotConfig.extensionId));
+      }
       colEl.appendChild(slotEl);
     });
 
@@ -3267,7 +3327,287 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+// ============================================================================
+// UNIFIED IDLE ATTRACT MODE COORDINATOR
+// Slow-scrolls overflowing lists/panes, cycles pivots, and runs per-extension
+// attract hooks (`onAttractStep` / `onAttractStop`) with randomized staggers.
+// ============================================================================
+const ATTRACT_IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
+const ATTRACT_TICK_MS = 500;
+
+let lastUserActivityMs = Date.now();
+let attractModeActive = false;
+let attractRafId = null;
+let attractLastFrameTs = 0;
+let paneScrollStates = new WeakMap();
+const activeScrollPanes = new Set();
+const slotAttractStates = new Map(); // slotId -> { nextStepAt, stepData }
+
+function attractRand(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function findSlotAndColumnById(slotId) {
+  for (const col of (appState && appState.columns) || []) {
+    const slot = (col.slots || []).find((s) => s.id === slotId);
+    if (slot) return { slot, col };
+  }
+  return null;
+}
+
+function getAttractScrollPanes(slotEl, plugin) {
+  if (!slotEl || (plugin && plugin.disableAttractScroll)) return [];
+  const doublePanes = [...slotEl.querySelectorAll(".double-pane")];
+  if (doublePanes.length > 0) return doublePanes;
+  const innerLists = [...slotEl.querySelectorAll(".chore-scroll-list")];
+  if (innerLists.length > 0) return innerLists;
+  const bodyEl = slotEl.querySelector(".slot-body");
+  return bodyEl ? [bodyEl] : [];
+}
+
+function stopAttractMode() {
+  if (attractRafId !== null) {
+    cancelAnimationFrame(attractRafId);
+    attractRafId = null;
+  }
+  attractLastFrameTs = 0;
+
+  if (attractModeActive) {
+    attractModeActive = false;
+    document.querySelectorAll(".attract-highlight").forEach((el) => {
+      el.classList.remove("attract-highlight");
+    });
+
+    slotAttractStates.forEach((state, slotId) => {
+      const found = findSlotAndColumnById(slotId);
+      if (!found) return;
+      const plugin = ExtensionRegistry.get(found.slot.extensionId);
+      if (plugin && typeof plugin.onAttractStop === "function") {
+        try {
+          const ctx = createExtensionContext(found.slot, found.col);
+          plugin.onAttractStop(ctx, state.stepData);
+        } catch (err) {}
+      }
+    });
+  }
+
+  paneScrollStates = new WeakMap();
+  activeScrollPanes.clear();
+  slotAttractStates.clear();
+}
+
+function stepAttractScrollFrame(ts) {
+  attractRafId = null;
+  if (!attractModeActive || document.visibilityState === "hidden" || isUserInteracting()) {
+    return;
+  }
+
+  const dt = attractLastFrameTs ? Math.min(0.1, Math.max(0, (ts - attractLastFrameTs) / 1000)) : 0;
+  attractLastFrameTs = ts;
+  const now = Date.now();
+  let anyScrolling = false;
+
+  activeScrollPanes.forEach((el) => {
+    if (!el.isConnected) {
+      activeScrollPanes.delete(el);
+      return;
+    }
+    const st = paneScrollStates.get(el);
+    if (!st || st.phase !== "scrolling") return;
+
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 12) {
+      activeScrollPanes.delete(el);
+      return;
+    }
+
+    anyScrolling = true;
+    if (dt <= 0) return;
+
+    st.virtualTop += st.direction * st.speedPxPerSec * dt;
+    if (st.virtualTop >= maxScroll) {
+      el.scrollTop = maxScroll;
+      st.virtualTop = maxScroll;
+      st.direction = -1;
+      st.phase = "paused_end";
+      st.nextTransitionAt = now + attractRand(2800, 4800);
+    } else if (st.virtualTop <= 0) {
+      el.scrollTop = 0;
+      st.virtualTop = 0;
+      st.direction = 1;
+      st.phase = "resting";
+      st.nextTransitionAt = now + attractRand(6500, 12000);
+    } else {
+      el.scrollTop = st.virtualTop;
+    }
+  });
+
+  if (anyScrolling) {
+    attractRafId = requestAnimationFrame(stepAttractScrollFrame);
+  } else {
+    attractLastFrameTs = 0;
+  }
+}
+
+function ensureAttractScrollLoop() {
+  if (attractRafId !== null || !attractModeActive) return;
+  attractLastFrameTs = 0;
+  attractRafId = requestAnimationFrame(stepAttractScrollFrame);
+}
+
+function tickAttractMode() {
+  if (document.visibilityState === "hidden" || !appState || isUserInteracting()) {
+    if (attractModeActive) stopAttractMode();
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastUserActivityMs < ATTRACT_IDLE_THRESHOLD_MS) {
+    if (attractModeActive) stopAttractMode();
+    return;
+  }
+
+  attractModeActive = true;
+
+  const reducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const activeSlotIds = new Set();
+
+  document.querySelectorAll(".metro-slot[data-slot-id]").forEach((slotEl) => {
+    const slotId = slotEl.dataset.slotId;
+    if (!slotId) return;
+    if (
+      slotEl.classList.contains("arrange-wireframe") ||
+      slotEl.querySelector(".slot-command-drawer.open") ||
+      slotEl.querySelector("input, textarea, select")
+    ) {
+      return;
+    }
+
+    const found = findSlotAndColumnById(slotId);
+    if (!found) return;
+    const plugin = ExtensionRegistry.get(found.slot.extensionId);
+    if (!plugin) return;
+
+    activeSlotIds.add(slotId);
+
+    // 1. Slow-scroll any overflowing panes/lists in this widget
+    if (!reducedMotion) {
+      const panes = getAttractScrollPanes(slotEl, plugin);
+      panes.forEach((el) => {
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        if (maxScroll <= 12) {
+          activeScrollPanes.delete(el);
+          return;
+        }
+        let st = paneScrollStates.get(el);
+        if (!st) {
+          st = {
+            phase: "wait_start",
+            nextTransitionAt: now + attractRand(1500, 9500),
+            direction: el.scrollTop >= maxScroll - 4 ? -1 : 1,
+            speedPxPerSec: attractRand(16, 24),
+            virtualTop: el.scrollTop,
+          };
+          paneScrollStates.set(el, st);
+          activeScrollPanes.add(el);
+          return;
+        }
+
+        if (now >= st.nextTransitionAt) {
+          if (st.phase === "wait_start" || st.phase === "paused_end" || st.phase === "resting") {
+            st.virtualTop = el.scrollTop;
+            if (el.scrollTop >= maxScroll - 2) st.direction = -1;
+            else if (el.scrollTop <= 2) st.direction = 1;
+            st.speedPxPerSec = attractRand(16, 24);
+            st.phase = "scrolling";
+            st.nextTransitionAt = now + attractRand(6500, 13500);
+          } else if (st.phase === "scrolling") {
+            st.phase = "paused_end";
+            st.nextTransitionAt = now + attractRand(2800, 4800);
+          }
+        }
+      });
+    }
+
+    // 2. Run extension custom attract step OR generic pivot cycling
+    let slotState = slotAttractStates.get(slotId);
+    if (!slotState) {
+      slotState = {
+        nextStepAt: now + attractRand(1800, 9500),
+        stepData: {},
+      };
+      slotAttractStates.set(slotId, slotState);
+      return;
+    }
+
+    if (now >= slotState.nextStepAt) {
+      if (typeof plugin.onAttractStep === "function") {
+        try {
+          const ctx = createExtensionContext(found.slot, found.col);
+          const res = plugin.onAttractStep(ctx, slotState.stepData);
+          const delay =
+            res && typeof res.nextDelayMs === "number"
+              ? res.nextDelayMs
+              : attractRand(10000, 17000);
+          slotState.nextStepAt = now + delay;
+        } catch (err) {
+          slotState.nextStepAt = now + 15000;
+        }
+      } else {
+        const tabs = [...slotEl.querySelectorAll(".sub-pivots .pivot-tab")];
+        if (tabs.length >= 2) {
+          const curIdx = tabs.findIndex((t) => t.classList.contains("active"));
+          const nextTab = tabs[(curIdx + 1) % tabs.length];
+          if (nextTab) nextTab.click();
+          slotState.nextStepAt = now + attractRand(10000, 17000);
+        } else {
+          slotState.nextStepAt = now + 15000;
+        }
+      }
+    }
+  });
+
+  // Prune removed slots & check whether RAF scroll loop should run
+  for (const slotId of slotAttractStates.keys()) {
+    if (!activeSlotIds.has(slotId)) {
+      slotAttractStates.delete(slotId);
+    }
+  }
+
+  let hasScrollingPane = false;
+  activeScrollPanes.forEach((el) => {
+    if (!el.isConnected) {
+      activeScrollPanes.delete(el);
+      return;
+    }
+    const st = paneScrollStates.get(el);
+    if (st && st.phase === "scrolling") {
+      hasScrollingPane = true;
+    }
+  });
+  if (hasScrollingPane) {
+    ensureAttractScrollLoop();
+  }
+}
+
+function initAttractMode() {
+  const markUserActivity = () => {
+    lastUserActivityMs = Date.now();
+    if (attractModeActive) {
+      stopAttractMode();
+    }
+  };
+  ["pointerdown", "mousemove", "keydown", "wheel", "touchstart"].forEach((evt) => {
+    window.addEventListener(evt, markUserActivity, { passive: true });
+  });
+  setInterval(tickAttractMode, ATTRACT_TICK_MS);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initAttractMode();
   registerPwaServiceWorker();
   updateClock();
   setInterval(updateClock, 15000);

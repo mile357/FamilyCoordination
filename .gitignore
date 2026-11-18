@@ -1,9 +1,11 @@
 __pycache__/
 *.pyc
 .DS_Store
+.agents/
 data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/backups/
 node_modules/
 .env

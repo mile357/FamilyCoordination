@@ -360,6 +360,8 @@ html, body {
   gap: var(--col-gap);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x;
 }
 
 .panorama-viewport::-webkit-scrollbar {
@@ -785,6 +787,8 @@ html, body {
   overflow-y: auto;
   padding: 6px 18px 18px 18px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .slot-body::-webkit-scrollbar {
@@ -833,8 +837,8 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 34px;
+  min-height: 34px;
   padding: 3px 6px;
   margin-left: 2px;
   opacity: 0.7;
@@ -1161,7 +1165,7 @@ html, body {
   align-items: center;
   gap: 12px;
   flex: 1;
-  min-height: 28px;
+  min-height: 38px;
   cursor: pointer;
 }
 
@@ -1720,6 +1724,7 @@ html, body {
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   transform: translateX(100%);
   transition: transform 0.38s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
@@ -1975,4 +1980,12 @@ html, body {
   word-break: break-all;
   user-select: all;
 }
+
+/* Attract Mode Item Highlight */
+.attract-highlight {
+  background: color-mix(in srgb, var(--slot-accent, var(--accent)) 14%, var(--bg-tile-hover)) !important;
+  border-color: var(--slot-accent, var(--accent)) !important;
+  box-shadow: inset 3px 0 0 var(--slot-accent, var(--accent)), 0 0 0 1px color-mix(in srgb, var(--slot-accent, var(--accent)) 35%, transparent);
+}
+
 

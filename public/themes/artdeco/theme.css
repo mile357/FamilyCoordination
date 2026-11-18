@@ -1,0 +1,317 @@
+/*
+ * Art Deco Theme — 1920s Obsidian Lacquer (Dark) & Ivory Travertine (Light)
+ * Poiret One & Josefin Sans geometric typography, champagne gold double-hairline frames,
+ * stepped ziggurat corner accents, and crisp jewel-toned section highlights.
+ */
+
+@font-face {
+  font-family: "Poiret One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/poiret-one-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Josefin Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/josefin-sans-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Josefin Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/josefin-sans-700.woff2") format("woff2");
+}
+
+[data-theme-id="artdeco"] {
+  --font-display: "Josefin Sans", "Futura", "Century Gothic", sans-serif;
+  --font-deco-hero: "Poiret One", "Josefin Sans", "Futura", sans-serif;
+  --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Josefin Sans", ui-monospace, Menlo, monospace;
+
+  --title-size: 38px;
+  --title-weight: 400;
+  --title-letter-spacing: 0.14em;
+  --title-tracking: 0.14em;
+  --slot-title-size: 19px;
+  --slot-title-weight: 700;
+  --slot-title-letter-spacing: 0.12em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0.01em;
+
+  --clock-size: 36px;
+  --clock-weight: 400;
+  --date-size: 14px;
+  --date-weight: 600;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #090b10;
+  --bg-canvas-image:
+    radial-gradient(ellipse 75% 45% at 50% 0%, rgba(212, 175, 55, 0.10) 0%, transparent 65%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(212, 175, 55, 0.025) 0px,
+      rgba(212, 175, 55, 0.025) 1px,
+      transparent 1px,
+      transparent 48px
+    );
+  --bg-header: rgba(11, 13, 19, 0.92);
+  --bg-surface: #10131a;
+  --bg-surface-elevated: #171c26;
+  --bg-tile: #10131a;
+  --bg-tile-hover: #181e29;
+  --bg-tile-subtle: rgba(212, 175, 55, 0.05);
+  --bg-appbar: #0d1016;
+  --bg-input: #0a0c11;
+  --bg-flyout: #0d1017;
+  --bg-backdrop: rgba(4, 5, 9, 0.78);
+  --bg-wireframe-overlay: rgba(9, 11, 16, 0.88);
+
+  --text-primary: #f5efe0;
+  --text-secondary: #d4c7a8;
+  --text-muted: #968a6e;
+
+  --deco-gold: #d4af37;
+
+  --border-color: rgba(212, 175, 55, 0.28);
+  --border-strong: rgba(212, 175, 55, 0.72);
+
+  --danger-color: #c4344b;
+  --danger-text: #f2798d;
+  --success-color: #1d9a6c;
+  --warning-color: #d4af37;
+  --info-color: #2f75c9;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+
+  --radius-slot: 0px;
+  --radius-card: 0px;
+  --radius-btn: 0px;
+  --radius-input: 0px;
+  --radius-pill: 0px;
+  --radius-checkbox: 0px;
+
+  --shadow-slot: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --shadow-card: none;
+  --shadow-flyout: -10px 0 36px rgba(0, 0, 0, 0.76);
+
+  --slot-border: 1px solid rgba(212, 175, 55, 0.42);
+  --slot-border-top: 1px solid rgba(212, 175, 55, 0.55);
+  --card-border: 1px solid rgba(212, 175, 55, 0.16);
+  --header-border-bottom: 1px solid rgba(212, 175, 55, 0.48);
+
+  --scrollbar-track: #0b0d13;
+  --scrollbar-thumb: rgba(212, 175, 55, 0.42);
+  --scrollbar-thumb-hover: var(--deco-gold);
+}
+
+/* Ivory Travertine & Burnished Brass Light Variant */
+[data-theme-id="artdeco"][data-theme="light"] {
+  --bg-canvas: #f3ede1;
+  --bg-canvas-image:
+    radial-gradient(ellipse 75% 45% at 50% 0%, rgba(180, 140, 50, 0.12) 0%, transparent 65%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(140, 106, 26, 0.035) 0px,
+      rgba(140, 106, 26, 0.035) 1px,
+      transparent 1px,
+      transparent 48px
+    );
+  --bg-header: rgba(246, 241, 231, 0.94);
+  --bg-surface: #fbf8f0;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #fbf8f0;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: rgba(140, 106, 26, 0.06);
+  --bg-appbar: #eae1cf;
+  --bg-input: #ffffff;
+  --bg-flyout: #f8f4ea;
+  --bg-backdrop: rgba(28, 22, 14, 0.40);
+  --bg-wireframe-overlay: rgba(243, 237, 225, 0.90);
+
+  --text-primary: #171410;
+  --text-secondary: #4a4134;
+  --text-muted: #736754;
+
+  --deco-gold: #8c6a1a;
+
+  --border-color: rgba(140, 106, 26, 0.30);
+  --border-strong: rgba(140, 106, 26, 0.72);
+
+  --danger-color: #a32238;
+  --danger-text: #8c1a2d;
+  --success-color: #167552;
+  --warning-color: #8c6a1a;
+  --info-color: #21589c;
+
+  --shadow-slot: 0 6px 22px rgba(72, 54, 22, 0.10);
+  --shadow-flyout: -8px 0 28px rgba(55, 42, 16, 0.18);
+
+  --slot-border: 1px solid rgba(140, 106, 26, 0.42);
+  --slot-border-top: 1px solid rgba(140, 106, 26, 0.55);
+  --card-border: 1px solid rgba(140, 106, 26, 0.18);
+  --header-border-bottom: 1px solid rgba(140, 106, 26, 0.45);
+
+  --scrollbar-track: #eae1cf;
+  --scrollbar-thumb: rgba(140, 106, 26, 0.38);
+  --scrollbar-thumb-hover: #8c6a1a;
+}
+
+[data-theme-id="artdeco"] .panorama-header {
+  box-shadow: inset 0 -3px 0 var(--bg-header), inset 0 -4px 0 color-mix(in srgb, var(--deco-gold) 35%, transparent);
+}
+
+[data-theme-id="artdeco"] .panorama-title {
+  font-family: var(--font-deco-hero);
+  letter-spacing: 0.14em;
+  color: var(--text-primary);
+}
+
+[data-theme-id="artdeco"] .clock-time {
+  font-family: var(--font-deco-hero);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--deco-gold);
+}
+
+[data-theme-id="artdeco"] .clock-date {
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+}
+
+/* Double-Hairline Gold Frame & Stepped Deco Corners */
+[data-theme-id="artdeco"] .metro-slot:not(.arrange-wireframe) {
+  padding: 16px 18px;
+  background-color: var(--bg-tile);
+  background-image:
+    linear-gradient(var(--slot-accent, var(--deco-gold)), var(--slot-accent, var(--deco-gold))),
+    linear-gradient(var(--slot-accent, var(--deco-gold)), var(--slot-accent, var(--deco-gold))),
+    linear-gradient(var(--slot-accent, var(--deco-gold)), var(--slot-accent, var(--deco-gold))),
+    linear-gradient(var(--slot-accent, var(--deco-gold)), var(--slot-accent, var(--deco-gold)));
+  background-repeat: no-repeat;
+  background-size: 10px 10px, 10px 10px, 10px 10px, 10px 10px;
+  background-position: top left, top right, bottom left, bottom right;
+  box-shadow:
+    inset 0 0 0 4px var(--bg-tile),
+    inset 0 0 0 5px color-mix(in srgb, var(--deco-gold) 42%, transparent),
+    var(--shadow-slot);
+}
+
+[data-theme-id="artdeco"] .slot-header {
+  position: relative;
+  border-bottom: 1px solid color-mix(in srgb, var(--deco-gold) 48%, transparent);
+  padding: 6px 4px 10px 4px;
+  margin-bottom: 4px;
+}
+
+/* Centered Gold Deco Lozenge */
+[data-theme-id="artdeco"] .slot-header::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--slot-accent, var(--deco-gold));
+  pointer-events: none;
+}
+
+[data-theme-id="artdeco"] .slot-title {
+  color: var(--slot-accent-text, var(--text-primary));
+  letter-spacing: 0.12em;
+}
+
+[data-theme-id="artdeco"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="artdeco"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 0 0 0 2px transparent;
+}
+
+[data-theme-id="artdeco"] .metro-btn:hover {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--deco-gold) 35%, transparent);
+}
+
+[data-theme-id="artdeco"] .metro-btn.accent {
+  border-color: var(--accent);
+}
+
+[data-theme-id="artdeco"] .metro-checkbox {
+  border: 1.5px solid color-mix(in srgb, var(--slot-accent, var(--deco-gold)) 75%, var(--border-strong));
+}
+
+[data-theme-id="artdeco"] .metro-input {
+  border: 1px solid var(--border-color);
+}
+
+[data-theme-id="artdeco"] .metro-input:focus {
+  border-color: var(--deco-gold);
+}
+
+[data-theme-id="artdeco"] .sub-pivots {
+  background: var(--bg-tile);
+  gap: 14px;
+  box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+[data-theme-id="artdeco"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="artdeco"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  padding: 6px 4px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="artdeco"] .settings-pivots .pivot-tab {
+  font-size: 14.5px;
+}
+
+[data-theme-id="artdeco"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--accent-text));
+  border-bottom-color: var(--slot-accent, var(--deco-gold));
+}
+
+[data-theme-id="artdeco"] .metro-flyout {
+  border-left: 1px solid var(--deco-gold);
+}
+
+[data-theme-id="artdeco"] .toast-banner {
+  border: 1px solid var(--deco-gold);
+}
+
+[data-theme-id="artdeco"] .pocket-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--deco-gold) 50%, transparent);
+  padding-bottom: 8px;
+}
+
+[data-theme-id="artdeco"] .pocket-header .pocket-title {
+  font-family: var(--font-deco-hero);
+  letter-spacing: 0.12em;
+}

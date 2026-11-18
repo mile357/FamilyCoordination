@@ -1,0 +1,34 @@
+{
+  "id": "midcentury",
+  "name": "Mid-Century Modern",
+  "description": "1950s–60s Palm Springs and Eames-era warmth with Fraunces display curves, persimmon, avocado, mustard, and walnut lounge tones.",
+  "author": "Family Hub",
+  "order": 19,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#D95D24",
+  "accents": [
+    { "name": "Persimmon Orange", "hex": "#D95D24" },
+    { "name": "Atomic Teal", "hex": "#1A7F7D" },
+    { "name": "Avocado Olive", "hex": "#5E7A38" },
+    { "name": "Mustard Ochre", "hex": "#C98A14" },
+    { "name": "Teak Walnut", "hex": "#7A4928" }
+  ],
+  "extensionAccents": {
+    "calendar": "#1A7F7D",
+    "meals": "#D95D24",
+    "groceries": "#5E7A38",
+    "chores": "#C98A14",
+    "notes": "#7A4928",
+    "task-checklist": "#B84A39"
+  },
+  "metaThemeColor": {
+    "light": "#F4EBDD",
+    "dark": "#1A1410"
+  },
+  "preview": {
+    "light": { "canvas": "#F4EBDD", "tile": "#FDF9F1", "accent": "#D95D24" },
+    "dark": { "canvas": "#1A1410", "tile": "#251D17", "accent": "#F07B42" }
+  }
+}

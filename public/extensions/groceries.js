@@ -3,7 +3,7 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
-import { renderQrSvg } from "../qr.js?v=37";
+import { renderQrSvg } from "../qr.js?v=44";
 
 export default {
   id: "groceries",
@@ -204,9 +204,15 @@ export default {
   },
 
   renderSlot(ctx) {
-    const { slot, appState, saveState, escapeHtml } = ctx;
+    const { slot, appState, uiState, saveState, escapeHtml } = ctx;
     const sid = escapeHtml(slot.id);
     const selId = CSS.escape(slot.id);
+    const drawerOpen = Boolean(
+      uiState &&
+        uiState.slotDrawers &&
+        uiState.slotDrawers[slot.id] &&
+        uiState.slotDrawers[slot.id].open
+    );
     const wrap = document.createElement("div");
     wrap.innerHTML = `<div class="metro-list" id="grocList_${sid}"></div>`;
 
@@ -235,7 +241,7 @@ export default {
             }
           </div>
         </div>
-        <button class="slot-icon-btn" title="Delete">✕</button>
+        ${drawerOpen ? `<button class="slot-icon-btn" title="Delete">✕</button>` : ""}
       `;
 
       const checkRow = row.querySelector(".check-row");
@@ -251,10 +257,13 @@ export default {
         }
       });
 
-      row.querySelector("button").addEventListener("click", () => {
-        appState.groceries = appState.groceries.filter((g) => g.id !== item.id);
-        saveState();
-      });
+      const delBtn = row.querySelector("button.slot-icon-btn");
+      if (delBtn) {
+        delBtn.addEventListener("click", () => {
+          appState.groceries = appState.groceries.filter((g) => g.id !== item.id);
+          saveState();
+        });
+      }
 
       listEl.appendChild(row);
     });

@@ -74,6 +74,7 @@ function ensureStyles() {
       background: var(--bg-tile);
       border: 1px solid var(--border-color);
       padding: 8px 10px;
+      transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
     }
     .tc-group.is-complete {
       border-color: color-mix(in srgb, var(--slot-accent, #0050EF) 55%, transparent);
@@ -141,6 +142,7 @@ function ensureStyles() {
     }
     .tc-task-list .metro-list-item {
       padding: 5px 6px;
+      transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
     }
     .tc-edit-panel {
       display: flex;
@@ -198,8 +200,89 @@ export default {
     "Reference checklists of required steps for chores or routines, with daily auto-reset and on-demand reset.",
   accent: "#0050EF",
   defaultSize: "half",
+  disableAttractScroll: true,
   infoText:
     "Tap an item header to expand or collapse its steps. Check off steps as you go—all items reset automatically each day, or tap ↻ to reset an item on demand. Tap ✎ to edit an item and its steps.",
+  onAttractStep(ctx, stepData) {
+    const ui = getSlotUi(ctx.slot.id);
+    const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(ctx.slot.id)}"]`);
+    if (!slotEl) return { nextDelayMs: 6000 };
+
+    slotEl.querySelectorAll(".attract-highlight").forEach((el) => {
+      el.classList.remove("attract-highlight");
+    });
+
+    if (ui.editingItemId) {
+      return { nextDelayMs: 4000 };
+    }
+
+    const targets = [];
+    slotEl.querySelectorAll(".tc-groups > .tc-group").forEach((groupEl) => {
+      const steps = groupEl.querySelectorAll(".tc-task-list .metro-list-item");
+      if (steps.length > 0) {
+        steps.forEach((s) => targets.push(s));
+      } else {
+        targets.push(groupEl);
+      }
+    });
+
+    if (targets.length === 0) {
+      return { nextDelayMs: 10000 };
+    }
+
+    if (targets.length === 1) {
+      stepData.highlighted = !stepData.highlighted;
+      if (stepData.highlighted) {
+        targets[0].classList.add("attract-highlight");
+        return { nextDelayMs: 2800 + Math.floor(Math.random() * 1800) };
+      }
+      return { nextDelayMs: 2400 + Math.floor(Math.random() * 1600) };
+    }
+
+    if (stepData.resting) {
+      stepData.resting = false;
+      stepData.index = -1;
+    }
+
+    const prevIdx = typeof stepData.index === "number" ? stepData.index : -1;
+    const nextIdx = prevIdx + 1;
+    if (nextIdx >= targets.length) {
+      stepData.resting = true;
+      return { nextDelayMs: 4500 + Math.floor(Math.random() * 3500) };
+    }
+
+    stepData.index = nextIdx;
+    const activeTarget = targets[nextIdx];
+    activeTarget.classList.add("attract-highlight");
+
+    const scrollContainer = slotEl.querySelector(".chore-scroll-list");
+    if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 4) {
+      const cRect = scrollContainer.getBoundingClientRect();
+      const tRect = activeTarget.getBoundingClientRect();
+      if (tRect.top < cRect.top + 6 || tRect.bottom > cRect.bottom - 6) {
+        const delta = tRect.top - cRect.top - (cRect.height - tRect.height) / 2;
+        scrollContainer.scrollTo({
+          top: Math.max(0, scrollContainer.scrollTop + delta),
+          behavior: "smooth",
+        });
+      }
+    }
+
+    return { nextDelayMs: 2600 + Math.floor(Math.random() * 2000) };
+  },
+  onAttractStop(ctx, stepData) {
+    const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(ctx.slot.id)}"]`);
+    if (slotEl) {
+      slotEl.querySelectorAll(".attract-highlight").forEach((el) => {
+        el.classList.remove("attract-highlight");
+      });
+    }
+    if (stepData) {
+      stepData.index = -1;
+      stepData.resting = false;
+      stepData.highlighted = false;
+    }
+  },
   defaultState: {
     taskChecklists: [
       {

@@ -1,0 +1,242 @@
+/*
+ * Mid-Century Modern Theme — Palm Springs Cream (Light) & Walnut Lounge (Dark)
+ * Fraunces warm organic display serifs, DM Sans pill controls,
+ * persimmon/avocado/mustard/teal palette, and 16px organic card curves.
+ */
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/fraunces-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/dm-sans-700.woff2") format("woff2");
+}
+
+[data-theme-id="midcentury"] {
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-ui: "DM Sans", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "Inter", "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --title-size: 38px;
+  --title-weight: 600;
+  --title-letter-spacing: -0.02em;
+  --title-tracking: -0.02em;
+  --slot-title-size: 23px;
+  --slot-title-weight: 600;
+  --slot-title-letter-spacing: -0.01em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 36px;
+  --clock-weight: 600;
+  --date-size: 16px;
+  --date-weight: 600;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: uppercase;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --radius-slot: 16px;
+  --radius-card: 10px;
+  --radius-btn: 9999px;
+  --radius-input: 10px;
+  --radius-pill: 9999px;
+  --radius-badge: 9999px;
+  --radius-chip: 9999px;
+  --radius-checkbox: 50%;
+  --radius-toggle: 9999px;
+  --radius-toggle-thumb: 50%;
+}
+
+/* Palm Springs Cream & Teak Light Mode (Default) */
+[data-theme-id="midcentury"][data-theme="light"],
+[data-theme-id="midcentury"] {
+  --bg-canvas: #f4ebdd;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 50% at 15% 10%, rgba(217, 93, 36, 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 88% 88%, rgba(26, 127, 125, 0.08) 0%, transparent 65%);
+  --bg-header: rgba(244, 235, 221, 0.94);
+  --bg-surface: #fdf9f1;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #fdf9f1;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: rgba(122, 73, 40, 0.06);
+  --bg-appbar: #eadcc6;
+  --bg-input: #ffffff;
+  --bg-flyout: #faf4e8;
+  --bg-backdrop: rgba(36, 28, 22, 0.36);
+  --bg-wireframe-overlay: rgba(244, 235, 221, 0.90);
+
+  --text-primary: #241c16;
+  --text-secondary: #5c493a;
+  --text-muted: #786250;
+
+  --border-color: #d8c6ae;
+  --border-strong: #6b4e38;
+
+  --danger-color: #c23b2b;
+  --danger-text: #a12b1d;
+  --success-color: #5e7a38;
+  --warning-color: #b87a0e;
+  --info-color: #1a7f7d;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --slot-border: 1.5px solid #d8c6ae;
+  --slot-border-top: 5px solid var(--slot-accent, #d95d24);
+  --card-border: 1px solid #e6d8c3;
+  --header-border-bottom: 1.5px solid #cfbda3;
+  --shadow-slot: 0 8px 24px rgba(84, 58, 32, 0.08);
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 30px rgba(60, 40, 20, 0.16);
+
+  --scrollbar-track: #eadcc6;
+  --scrollbar-thumb: #c4ae91;
+  --scrollbar-thumb-hover: #7a4928;
+}
+
+/* Eames Walnut Lounge Dark Mode */
+[data-theme-id="midcentury"][data-theme="dark"] {
+  --bg-canvas: #1a1410;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 50% at 15% 10%, rgba(240, 123, 66, 0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 88% 88%, rgba(45, 168, 165, 0.08) 0%, transparent 65%);
+  --bg-header: rgba(26, 20, 16, 0.94);
+  --bg-surface: #251d17;
+  --bg-surface-elevated: #31271f;
+  --bg-tile: #251d17;
+  --bg-tile-hover: #31271f;
+  --bg-tile-subtle: rgba(247, 239, 228, 0.05);
+  --bg-appbar: #201914;
+  --bg-input: #17110d;
+  --bg-flyout: #221b15;
+  --bg-backdrop: rgba(0, 0, 0, 0.72);
+  --bg-wireframe-overlay: rgba(26, 20, 16, 0.90);
+
+  --text-primary: #f7efe4;
+  --text-secondary: #ccbcae;
+  --text-muted: #9e8d7d;
+
+  --border-color: #4a3b2f;
+  --border-strong: #9c826b;
+
+  --danger-color: #f06449;
+  --danger-text: #ff917a;
+  --success-color: #8bb557;
+  --warning-color: #ebb038;
+  --info-color: #46b8b5;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 14%, transparent);
+
+  --slot-border: 1.5px solid #45362b;
+  --slot-border-top: 5px solid var(--slot-accent, #f07b42);
+  --card-border: 1px solid #3a2e25;
+  --header-border-bottom: 1.5px solid #45362b;
+  --shadow-slot: 0 10px 28px rgba(0, 0, 0, 0.48);
+  --shadow-flyout: -8px 0 30px rgba(0, 0, 0, 0.72);
+
+  --scrollbar-track: #201914;
+  --scrollbar-thumb: #5c493a;
+  --scrollbar-thumb-hover: #9c826b;
+}
+
+[data-theme-id="midcentury"] .clock-time {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="midcentury"] .clock-date {
+  font-family: var(--font-ui);
+}
+
+[data-theme-id="midcentury"] .metro-slot:not(.arrange-wireframe) {
+  padding: 15px 17px;
+  background-color: var(--bg-tile);
+}
+
+[data-theme-id="midcentury"] .slot-header {
+  border-bottom: 1px solid var(--border-color);
+  padding: 2px 2px 10px 2px;
+  margin-bottom: 4px;
+}
+
+/* Atomic 4-Point Starburst Pip */
+[data-theme-id="midcentury"] .slot-title::before {
+  content: "";
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 9px;
+  vertical-align: 2px;
+  background: var(--slot-accent, var(--accent));
+  clip-path: polygon(50% 0%, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0% 50%, 37% 37%);
+}
+
+[data-theme-id="midcentury"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="midcentury"] .metro-btn {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  border: 1.5px solid var(--border-color);
+  padding: 7px 16px;
+}
+
+[data-theme-id="midcentury"] .metro-btn.accent {
+  border-color: var(--accent);
+}
+
+[data-theme-id="midcentury"] .metro-checkbox {
+  border: 2px solid var(--border-strong);
+}
+
+[data-theme-id="midcentury"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  gap: 10px;
+}
+
+[data-theme-id="midcentury"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="midcentury"] .pivot-tab {
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 6px 10px 8px;
+  border-bottom: 3px solid transparent;
+}
+
+[data-theme-id="midcentury"] .settings-pivots .pivot-tab {
+  font-size: 15px;
+}
+
+[data-theme-id="midcentury"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--text-primary));
+  border-bottom-color: var(--slot-accent, var(--accent));
+}
+
+[data-theme-id="midcentury"] .metro-flyout {
+  border-left: 1.5px solid var(--border-color);
+}
+
+[data-theme-id="midcentury"] .pocket-header {
+  border-bottom: 1.5px solid var(--border-color);
+  padding-bottom: 8px;
+}

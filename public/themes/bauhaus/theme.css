@@ -1,0 +1,299 @@
+/*
+ * Bauhaus Theme — Weimar Drafting Paper (Light) & Dessau Night Studio (Dark)
+ * Paul Renner / Herbert Bayer geometric proportions, primary Red/Blue/Yellow triad,
+ * sharp orthogonal boxes contrasted with pure circular controls, and zero ornament.
+ */
+
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/jost-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/jost-700.woff2") format("woff2");
+}
+
+[data-theme-id="bauhaus"] {
+  --font-display: "Jost", "Futura", "Century Gothic", "Helvetica Neue", sans-serif;
+  --font-body: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --title-size: 36px;
+  --title-weight: 700;
+  --title-letter-spacing: 0.04em;
+  --title-tracking: 0.04em;
+  --slot-title-size: 20px;
+  --slot-title-weight: 700;
+  --slot-title-letter-spacing: 0.04em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 34px;
+  --clock-weight: 700;
+  --date-size: 14px;
+  --date-weight: 600;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bauhaus-red: #d92b2b;
+  --bauhaus-yellow: #e6a800;
+  --bauhaus-blue: #1a4bb8;
+
+  --radius-slot: 0px;
+  --radius-card: 0px;
+  --radius-btn: 0px;
+  --radius-input: 0px;
+  --radius-pill: 0px;
+  --radius-badge: 0px;
+  --radius-chip: 0px;
+  --radius-checkbox: 50%;
+  --radius-toggle: 9999px;
+  --radius-toggle-thumb: 50%;
+}
+
+/* Weimar Drafting Paper Light Variant (Default) */
+[data-theme-id="bauhaus"][data-theme="light"],
+[data-theme-id="bauhaus"] {
+  --bg-canvas: #f2ede2;
+  --bg-canvas-image: none;
+  --bg-header: #f2ede2;
+  --bg-surface: #faf7f0;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #faf7f0;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: #ebe5d8;
+  --bg-appbar: #e5dfd0;
+  --bg-input: #ffffff;
+  --bg-flyout: #faf7f0;
+  --bg-backdrop: rgba(17, 17, 17, 0.40);
+  --bg-wireframe-overlay: rgba(242, 237, 226, 0.90);
+
+  --text-primary: #111111;
+  --text-secondary: #3a3834;
+  --text-muted: #635f57;
+
+  --border-color: #c7c0b2;
+  --border-strong: #111111;
+  --bauhaus-shadow: rgba(17, 17, 17, 0.88);
+
+  --danger-color: #d92b2b;
+  --danger-text: #b31e1e;
+  --success-color: #257a4b;
+  --warning-color: #c28800;
+  --info-color: #1a4bb8;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --slot-border: 2px solid #111111;
+  --slot-border-top: 6px solid var(--slot-accent, var(--accent));
+  --card-border: 1.5px solid #111111;
+  --header-border-bottom: 2px solid #111111;
+  --shadow-slot: 4px 4px 0 #111111;
+  --shadow-card: none;
+  --shadow-flyout: -4px 0 0 #111111;
+
+  --scrollbar-track: #e5dfd0;
+  --scrollbar-thumb: #9e9789;
+  --scrollbar-thumb-hover: #111111;
+}
+
+/* Dessau Night Studio Dark Variant */
+[data-theme-id="bauhaus"][data-theme="dark"] {
+  --bg-canvas: #141413;
+  --bg-canvas-image: none;
+  --bg-header: #141413;
+  --bg-surface: #1c1c1a;
+  --bg-surface-elevated: #262623;
+  --bg-tile: #1c1c1a;
+  --bg-tile-hover: #262623;
+  --bg-tile-subtle: #22221f;
+  --bg-appbar: #191917;
+  --bg-input: #10100f;
+  --bg-flyout: #1c1c1a;
+  --bg-backdrop: rgba(0, 0, 0, 0.72);
+  --bg-wireframe-overlay: rgba(20, 20, 19, 0.90);
+
+  --text-primary: #f5f1e8;
+  --text-secondary: #c4bfb4;
+  --text-muted: #8f8a7f;
+
+  --border-color: #3f3d37;
+  --border-strong: #d8d2c5;
+  --bauhaus-shadow: #000000;
+
+  --danger-color: #ff4a4a;
+  --danger-text: #ff7a7a;
+  --success-color: #41b876;
+  --warning-color: #f2be22;
+  --info-color: #5b8cff;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 14%, transparent);
+
+  --slot-border: 2px solid #4d4a43;
+  --slot-border-top: 6px solid var(--slot-accent, var(--accent));
+  --card-border: 1.5px solid #4d4a43;
+  --header-border-bottom: 2px solid #4d4a43;
+  --shadow-slot: 4px 4px 0 #000000;
+  --shadow-flyout: -4px 0 0 #000000;
+
+  --scrollbar-track: #181816;
+  --scrollbar-thumb: #59564e;
+  --scrollbar-thumb-hover: #d8d2c5;
+}
+
+/* Primary Triad Architectural Rule Under Header */
+[data-theme-id="bauhaus"] .panorama-header {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="bauhaus"] .panorama-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--bauhaus-red) 0%,
+    var(--bauhaus-red) 33.333%,
+    var(--bauhaus-yellow) 33.333%,
+    var(--bauhaus-yellow) 66.666%,
+    var(--bauhaus-blue) 66.666%,
+    var(--bauhaus-blue) 100%
+  );
+  pointer-events: none;
+}
+
+[data-theme-id="bauhaus"] .clock-time,
+[data-theme-id="bauhaus"] .clock-date {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="bauhaus"] .metro-slot:not(.arrange-wireframe) {
+  padding: 12px 14px;
+  background-color: var(--bg-tile);
+}
+
+[data-theme-id="bauhaus"] .slot-header {
+  border-bottom: 2px solid var(--border-strong);
+  padding: 4px 2px 10px 2px;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="bauhaus"] .slot-title::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--slot-accent, var(--accent));
+  margin-right: 9px;
+  vertical-align: 1px;
+}
+
+[data-theme-id="bauhaus"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="bauhaus"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-surface-elevated);
+  padding: 7px 14px;
+}
+
+[data-theme-id="bauhaus"] .metro-btn.accent {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--border-strong);
+}
+
+[data-theme-id="bauhaus"] .metro-btn.subtle {
+  background: transparent;
+  border-color: var(--border-color);
+}
+
+[data-theme-id="bauhaus"] .metro-input {
+  border: 2px solid var(--border-strong);
+}
+
+[data-theme-id="bauhaus"] .metro-input:focus {
+  border-color: var(--accent);
+}
+
+[data-theme-id="bauhaus"] .metro-checkbox {
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+}
+
+[data-theme-id="bauhaus"] .metro-toggle {
+  border: 2px solid var(--border-strong);
+  border-radius: 9999px;
+}
+
+[data-theme-id="bauhaus"] .metro-toggle::after {
+  border-radius: 50%;
+}
+
+[data-theme-id="bauhaus"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -2px 0 var(--border-strong);
+  gap: 6px;
+}
+
+[data-theme-id="bauhaus"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="bauhaus"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 6px 10px 7px;
+  border-bottom: 3px solid transparent;
+}
+
+[data-theme-id="bauhaus"] .settings-pivots .pivot-tab {
+  font-size: 14.5px;
+}
+
+[data-theme-id="bauhaus"] .pivot-tab.active {
+  background: var(--slot-accent, var(--accent));
+  color: var(--slot-accent-fg, var(--accent-fg, #ffffff));
+  border-bottom-color: var(--border-strong);
+}
+
+[data-theme-id="bauhaus"] .metro-flyout {
+  border-left: 2px solid var(--border-strong);
+}
+
+[data-theme-id="bauhaus"] .toast-banner {
+  border: 2px solid var(--border-strong);
+  box-shadow: 4px 4px 0 var(--bauhaus-shadow);
+}
+
+[data-theme-id="bauhaus"] .pocket-header {
+  border-bottom: 3px solid var(--border-strong);
+  padding-bottom: 8px;
+}

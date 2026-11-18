@@ -3,6 +3,8 @@
  * Left Pane: Today's Hour-by-Hour Timeline
  * Right Pane: Next 7 Days Agenda
  */
+import { renderQrSvg } from "../qr.js?v=44";
+
 function buildInitialCalendarState() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -232,6 +234,16 @@ export default {
     wrap.style.flexDirection = "column";
     wrap.style.gap = "12px";
 
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    const origin =
+      isLocalhost && appState._lanOrigin
+        ? appState._lanOrigin
+        : window.location.origin;
+    const calCompanionUrl = `${origin}/go.html?mode=calendar`;
+    const calQrSvg = renderQrSvg(calCompanionUrl, 92);
+
     wrap.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
@@ -239,14 +251,30 @@ export default {
           <button class="slot-icon-btn" id="btnInlineSyncCal_${sid}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
         </div>
 
-        <div class="quick-form" style="margin-bottom:0; width:100%;">
-          <input class="metro-input" id="newCalName_${sid}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:220px;" />
-          <select class="metro-input" id="newCalProvider_${sid}" style="max-width:130px;">
-            <option value="google">Google</option>
-            <option value="microsoft">Microsoft</option>
-          </select>
-          <input class="metro-input" id="newCalUrl_${sid}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
-          <button class="metro-btn accent" id="btnConnectCal_${sid}">+ connect</button>
+        <div style="display:flex; align-items:stretch; gap:12px; flex-wrap:wrap;">
+          <div class="quick-form" style="margin-bottom:0; flex:1; min-width:320px; align-items:center;">
+            <input class="metro-input" id="newCalName_${sid}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:200px;" />
+            <select class="metro-input" id="newCalProvider_${sid}" style="max-width:120px;">
+              <option value="google">Google</option>
+              <option value="microsoft">Microsoft</option>
+            </select>
+            <input class="metro-input" id="newCalUrl_${sid}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
+            <button class="metro-btn accent" id="btnConnectCal_${sid}">+ connect</button>
+          </div>
+
+          <div class="groc-qr-card" style="margin-top:0; padding:8px 12px; max-width:340px;">
+            <div id="calQrBox_${sid}">${calQrSvg}</div>
+            <div class="groc-qr-info">
+              <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--slot-accent-text, var(--slot-accent, #00ABA9));">
+                paste from phone
+              </div>
+              <div class="groc-qr-caption">
+                Scan on home Wi-Fi to paste long <code>.ics</code> links from your phone (<code>${escapeHtml(
+                  origin.replace(/^https?:\/\//, "")
+                )}/go.html?mode=calendar</code>).
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     `;

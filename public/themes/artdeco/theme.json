@@ -1,0 +1,34 @@
+{
+  "id": "artdeco",
+  "name": "Art Deco",
+  "description": "1920s Chrysler-era geometric glamour with champagne gold double-hairline frames, stepped Deco corners, and obsidian lacquer or ivory marble.",
+  "author": "Family Hub",
+  "order": 14,
+  "stylesheet": "theme.css",
+  "modes": ["dark", "light"],
+  "defaultMode": "dark",
+  "defaultAccent": "#D4AF37",
+  "accents": [
+    { "name": "Champagne Gold", "hex": "#D4AF37" },
+    { "name": "Gatsby Emerald", "hex": "#1D9A6C" },
+    { "name": "Midnight Sapphire", "hex": "#2F75C9" },
+    { "name": "Ruby Velvet", "hex": "#C4344B" },
+    { "name": "Pearl Platinum", "hex": "#A8B4C4" }
+  ],
+  "extensionAccents": {
+    "calendar": "#D4AF37",
+    "meals": "#C4344B",
+    "groceries": "#1D9A6C",
+    "chores": "#D9822B",
+    "notes": "#8B6FC9",
+    "task-checklist": "#2F75C9"
+  },
+  "metaThemeColor": {
+    "dark": "#090B10",
+    "light": "#F3EDE1"
+  },
+  "preview": {
+    "dark": { "canvas": "#090B10", "tile": "#10131A", "accent": "#D4AF37" },
+    "light": { "canvas": "#F3EDE1", "tile": "#FBF8F0", "accent": "#8C6A1A" }
+  }
+}

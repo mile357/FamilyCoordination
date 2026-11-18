@@ -1,0 +1,238 @@
+/*
+ * Wabi-Sabi / Shoji Theme — Warm Washi & Cedar (Light) / Yakisugi & Indigo (Dark)
+ * Shippori Mincho serif titles, airy shoji lattice proportions, matcha & vermilion accents,
+ * and serene low-clutter framing designed for daily kitchen harmony.
+ */
+
+@font-face {
+  font-family: "Shippori Mincho";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/shippori-mincho-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Shippori Mincho";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/shippori-mincho-700.woff2") format("woff2");
+}
+
+[data-theme-id="wabisabi"] {
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --font-body: "Inter", "Hiragino Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --title-size: 36px;
+  --title-weight: 600;
+  --title-letter-spacing: 0.02em;
+  --title-tracking: 0.02em;
+  --slot-title-size: 22px;
+  --slot-title-weight: 600;
+  --slot-title-letter-spacing: 0.01em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 34px;
+  --clock-weight: 600;
+  --date-size: 16px;
+  --date-weight: 500;
+
+  --title-transform: none;
+  --slot-title-transform: none;
+  --section-transform: uppercase;
+  --label-transform: none;
+  --btn-transform: none;
+  --badge-transform: uppercase;
+  --clock-transform: none;
+  --date-transform: none;
+  --agenda-day-transform: capitalize;
+
+  --radius-slot: 2px;
+  --radius-card: 2px;
+  --radius-btn: 2px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-badge: 2px;
+  --radius-chip: 2px;
+  --radius-checkbox: 2px;
+}
+
+/* Warm Washi & Cedar Shoji Light Mode (Default) */
+[data-theme-id="wabisabi"][data-theme="light"],
+[data-theme-id="wabisabi"] {
+  --bg-canvas: #efeae0;
+  --bg-canvas-image:
+    linear-gradient(to right, rgba(138, 122, 98, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(138, 122, 98, 0.05) 1px, transparent 1px);
+  --bg-header: rgba(239, 234, 224, 0.94);
+  --bg-surface: #faf7f0;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #faf7f0;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: rgba(110, 96, 74, 0.055);
+  --bg-appbar: #e5ded0;
+  --bg-input: #ffffff;
+  --bg-flyout: #f7f3ea;
+  --bg-backdrop: rgba(30, 29, 26, 0.36);
+  --bg-wireframe-overlay: rgba(239, 234, 224, 0.90);
+
+  --text-primary: #1e1d1a;
+  --text-secondary: #524e45;
+  --text-muted: #706a5e;
+
+  --border-color: #c8beac;
+  --border-strong: #6b6355;
+
+  --danger-color: #b83b2b;
+  --danger-text: #9e2d1f;
+  --success-color: #4a6b4e;
+  --warning-color: #a86c28;
+  --info-color: #2b4c7e;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --slot-border: 1px solid #c8beac;
+  --slot-border-top: 3px solid var(--slot-accent, #4a6b4e);
+  --card-border: 1px solid #dcd4c4;
+  --header-border-bottom: 1px solid #bdb29e;
+  --shadow-slot: 0 4px 16px rgba(62, 54, 40, 0.06);
+  --shadow-card: none;
+  --shadow-flyout: -8px 0 28px rgba(45, 38, 26, 0.14);
+
+  --scrollbar-track: #e6dfd2;
+  --scrollbar-thumb: #b5aa97;
+  --scrollbar-thumb-hover: #6b6355;
+}
+
+/* Charred Yakisugi Cedar & Indigo Dark Mode */
+[data-theme-id="wabisabi"][data-theme="dark"] {
+  --bg-canvas: #161513;
+  --bg-canvas-image:
+    linear-gradient(to right, rgba(255, 250, 240, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 250, 240, 0.025) 1px, transparent 1px);
+  --bg-header: rgba(22, 21, 19, 0.94);
+  --bg-surface: #1e1d1a;
+  --bg-surface-elevated: #282622;
+  --bg-tile: #1e1d1a;
+  --bg-tile-hover: #272521;
+  --bg-tile-subtle: rgba(239, 236, 228, 0.045);
+  --bg-appbar: #1a1916;
+  --bg-input: #141311;
+  --bg-flyout: #1c1b18;
+  --bg-backdrop: rgba(0, 0, 0, 0.72);
+  --bg-wireframe-overlay: rgba(22, 21, 19, 0.90);
+
+  --text-primary: #efece4;
+  --text-secondary: #bdb6a7;
+  --text-muted: #8f887a;
+
+  --border-color: #3c3932;
+  --border-strong: #8c8476;
+
+  --danger-color: #de6352;
+  --danger-text: #f28d7e;
+  --success-color: #7ea683;
+  --warning-color: #d9a05b;
+  --info-color: #7ea2d6;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 13%, transparent);
+
+  --slot-border: 1px solid #38352e;
+  --slot-border-top: 3px solid var(--slot-accent, #7ea683);
+  --card-border: 1px solid #2e2c26;
+  --header-border-bottom: 1px solid #3c3932;
+  --shadow-slot: 0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-flyout: -8px 0 28px rgba(0, 0, 0, 0.65);
+
+  --scrollbar-track: #1a1916;
+  --scrollbar-thumb: #4a463d;
+  --scrollbar-thumb-hover: #8c8476;
+}
+
+[data-theme-id="wabisabi"] body {
+  background-size: 64px 64px;
+}
+
+[data-theme-id="wabisabi"] .clock-time,
+[data-theme-id="wabisabi"] .clock-date {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="wabisabi"] .metro-slot:not(.arrange-wireframe) {
+  padding: 15px 17px;
+  background-color: var(--bg-tile);
+}
+
+[data-theme-id="wabisabi"] .slot-header {
+  border-bottom: 1px solid var(--border-color);
+  padding: 4px 2px 10px 2px;
+  margin-bottom: 4px;
+}
+
+/* Subtle Hanko Seal-Stamp Accent Bar */
+[data-theme-id="wabisabi"] .slot-title::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  margin-right: 10px;
+  vertical-align: -1px;
+  background: var(--slot-accent, var(--accent));
+  border-radius: 1px;
+}
+
+[data-theme-id="wabisabi"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="wabisabi"] .metro-btn {
+  border: 1px solid var(--border-strong);
+  font-weight: 600;
+  padding: 7px 15px;
+}
+
+[data-theme-id="wabisabi"] .metro-btn.accent {
+  border-color: var(--accent);
+}
+
+[data-theme-id="wabisabi"] .metro-checkbox {
+  border: 1.5px solid var(--border-strong);
+}
+
+[data-theme-id="wabisabi"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  gap: 14px;
+}
+
+[data-theme-id="wabisabi"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="wabisabi"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  padding: 6px 2px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="wabisabi"] .settings-pivots .pivot-tab {
+  font-size: 17px;
+}
+
+[data-theme-id="wabisabi"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--text-primary));
+  border-bottom-color: var(--slot-accent, var(--accent));
+}
+
+[data-theme-id="wabisabi"] .metro-flyout {
+  border-left: 1px solid var(--border-color);
+}
+
+[data-theme-id="wabisabi"] .pocket-header {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}

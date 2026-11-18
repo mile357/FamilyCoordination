@@ -1,0 +1,34 @@
+{
+  "id": "wabisabi",
+  "name": "Wabi-Sabi / Shoji",
+  "description": "Calm Japanese washi paper and cedar shoji grid with Shippori Mincho serif typography, matcha sage, and vermilion hanko seal accents.",
+  "author": "Family Hub",
+  "order": 17,
+  "stylesheet": "theme.css",
+  "modes": ["light", "dark"],
+  "defaultMode": "light",
+  "defaultAccent": "#4A6B4E",
+  "accents": [
+    { "name": "Matcha Sage", "hex": "#4A6B4E" },
+    { "name": "Hanko Vermilion", "hex": "#B83B2B" },
+    { "name": "Aizome Indigo", "hex": "#2B4C7E" },
+    { "name": "Hinoki Amber", "hex": "#A86C28" },
+    { "name": "Sumi Charcoal", "hex": "#383632" }
+  ],
+  "extensionAccents": {
+    "calendar": "#2B4C7E",
+    "meals": "#B83B2B",
+    "groceries": "#4A6B4E",
+    "chores": "#A86C28",
+    "notes": "#6A5373",
+    "task-checklist": "#383632"
+  },
+  "metaThemeColor": {
+    "light": "#EFEAE0",
+    "dark": "#161513"
+  },
+  "preview": {
+    "light": { "canvas": "#EFEAE0", "tile": "#FAF7F0", "accent": "#4A6B4E" },
+    "dark": { "canvas": "#161513", "tile": "#1E1D1A", "accent": "#7EA683" }
+  }
+}

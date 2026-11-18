@@ -1,0 +1,302 @@
+/*
+ * Starfield Theme — Deep Space Cockpit (Dark) & Chronomark Ceramic (Light)
+ * NASA-punk Chakra Petch display typography, IBM Plex Mono telemetry readouts,
+ * signature Constellation 4-band spectrum ribbon, and chamfered aerospace controls.
+ */
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/chakra-petch-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/chakra-petch-700.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-600.woff2") format("woff2");
+}
+
+[data-theme-id="starfield"] {
+  --font-display: "Chakra Petch", "DIN Alternate", "Arial Narrow", sans-serif;
+  --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --title-size: 34px;
+  --title-weight: 700;
+  --title-letter-spacing: 0.10em;
+  --title-tracking: 0.10em;
+  --slot-title-size: 20px;
+  --slot-title-weight: 700;
+  --slot-title-letter-spacing: 0.08em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0.005em;
+
+  --clock-size: 34px;
+  --clock-weight: 600;
+  --date-size: 14px;
+  --date-weight: 600;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --constellation-red: #e03c31;
+  --constellation-orange: #f58025;
+  --constellation-gold: #f9b916;
+  --constellation-blue: #2d68c4;
+
+  --bg-canvas: #0a0f18;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 50% at 18% 12%, rgba(45, 104, 196, 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 45% at 86% 85%, rgba(245, 128, 37, 0.08) 0%, transparent 65%),
+    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  --bg-header: rgba(12, 18, 29, 0.92);
+  --bg-surface: #121a28;
+  --bg-surface-elevated: #192438;
+  --bg-tile: #121a28;
+  --bg-tile-hover: #1a263a;
+  --bg-tile-subtle: rgba(160, 195, 245, 0.055);
+  --bg-appbar: #0e1522;
+  --bg-input: #090d16;
+  --bg-flyout: #0f1624;
+  --bg-backdrop: rgba(4, 7, 13, 0.78);
+  --bg-wireframe-overlay: rgba(10, 15, 24, 0.88);
+
+  --text-primary: #eef3fa;
+  --text-secondary: #a8b9d0;
+  --text-muted: #7688a3;
+
+  --border-color: rgba(140, 175, 225, 0.22);
+  --border-strong: rgba(165, 200, 245, 0.55);
+
+  --danger-color: #e03c31;
+  --danger-text: #ff7a70;
+  --success-color: #2ea070;
+  --warning-color: #f9b916;
+  --info-color: #38bdf8;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 14%, transparent);
+
+  --radius-slot: 3px;
+  --radius-card: 2px;
+  --radius-btn: 0px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-badge: 2px;
+  --radius-chip: 2px;
+  --radius-checkbox: 2px;
+
+  --shadow-slot: 0 10px 28px rgba(0, 0, 0, 0.48);
+  --shadow-card: none;
+  --shadow-flyout: -10px 0 34px rgba(0, 0, 0, 0.75);
+
+  --slot-border: 1px solid rgba(140, 175, 225, 0.24);
+  --slot-border-top: 3px solid var(--slot-accent, var(--constellation-blue));
+  --card-border: 1px solid rgba(140, 175, 225, 0.14);
+  --header-border-bottom: 1px solid rgba(140, 175, 225, 0.25);
+
+  --scrollbar-track: #0c121d;
+  --scrollbar-thumb: rgba(140, 175, 225, 0.34);
+  --scrollbar-thumb-hover: var(--accent);
+}
+
+/* Constellation Chronomark Ceramic Light Variant */
+[data-theme-id="starfield"][data-theme="light"] {
+  --bg-canvas: #eceae2;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 50% at 18% 12%, rgba(45, 104, 196, 0.07) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 45% at 86% 85%, rgba(245, 128, 37, 0.06) 0%, transparent 65%);
+  --bg-header: rgba(236, 234, 226, 0.94);
+  --bg-surface: #f8f7f2;
+  --bg-surface-elevated: #ffffff;
+  --bg-tile: #f8f7f2;
+  --bg-tile-hover: #ffffff;
+  --bg-tile-subtle: rgba(29, 36, 48, 0.045);
+  --bg-appbar: #e0ddd3;
+  --bg-input: #ffffff;
+  --bg-flyout: #f5f3ec;
+  --bg-backdrop: rgba(18, 24, 36, 0.38);
+  --bg-wireframe-overlay: rgba(236, 234, 226, 0.90);
+
+  --text-primary: #18202c;
+  --text-secondary: #485466;
+  --text-muted: #5b677a;
+
+  --border-color: rgba(29, 36, 48, 0.20);
+  --border-strong: rgba(29, 36, 48, 0.55);
+
+  --danger-color: #c92e24;
+  --danger-text: #ab2118;
+  --success-color: #1f7d55;
+  --warning-color: #b87700;
+  --info-color: #2155a6;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --shadow-slot: 0 6px 20px rgba(20, 28, 42, 0.08);
+  --shadow-flyout: -8px 0 28px rgba(18, 24, 36, 0.16);
+
+  --slot-border: 1px solid rgba(29, 36, 48, 0.20);
+  --slot-border-top: 3px solid var(--slot-accent, var(--constellation-blue));
+  --card-border: 1px solid rgba(29, 36, 48, 0.12);
+  --header-border-bottom: 1px solid rgba(29, 36, 48, 0.22);
+
+  --scrollbar-track: #e0ddd3;
+  --scrollbar-thumb: rgba(29, 36, 48, 0.28);
+  --scrollbar-thumb-hover: #2d68c4;
+}
+
+[data-theme-id="starfield"] body {
+  background-size: auto, auto, 44px 44px;
+}
+
+/* Signature Constellation 4-Band Spectrum Ribbon */
+[data-theme-id="starfield"] .panorama-header {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="starfield"] .panorama-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--constellation-red) 0%,
+    var(--constellation-red) 25%,
+    var(--constellation-orange) 25%,
+    var(--constellation-orange) 50%,
+    var(--constellation-gold) 50%,
+    var(--constellation-gold) 75%,
+    var(--constellation-blue) 75%,
+    var(--constellation-blue) 100%
+  );
+  pointer-events: none;
+}
+
+[data-theme-id="starfield"] .clock-time,
+[data-theme-id="starfield"] .clock-date,
+[data-theme-id="starfield"] .hour-label,
+[data-theme-id="starfield"] .ev-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="starfield"] .metro-slot:not(.arrange-wireframe) {
+  padding: 14px 16px;
+  background-color: var(--bg-tile);
+}
+
+[data-theme-id="starfield"] .slot-header {
+  border-bottom: 1px solid var(--border-color);
+  padding: 4px 2px 10px 2px;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="starfield"] .slot-title {
+  color: var(--slot-accent-text, var(--text-primary));
+}
+
+/* Orbital Telemetry Notch Before Title */
+[data-theme-id="starfield"] .slot-title::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  margin-right: 9px;
+  vertical-align: -1px;
+  background: var(--slot-accent, var(--constellation-blue));
+  clip-path: polygon(0 0, 100% 20%, 100% 80%, 0 100%);
+}
+
+[data-theme-id="starfield"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+/* Chamfered NASA-Punk Buttons */
+[data-theme-id="starfield"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 7px 16px;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+
+[data-theme-id="starfield"] .metro-btn:focus-visible {
+  outline-offset: -3px;
+}
+
+[data-theme-id="starfield"] .metro-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme-id="starfield"] .metro-checkbox {
+  border: 1.5px solid color-mix(in srgb, var(--slot-accent, var(--accent)) 65%, var(--border-strong));
+}
+
+[data-theme-id="starfield"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  gap: 10px;
+}
+
+[data-theme-id="starfield"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="starfield"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 6px 6px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="starfield"] .settings-pivots .pivot-tab {
+  font-size: 15px;
+}
+
+[data-theme-id="starfield"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--accent-text));
+  border-bottom-color: var(--slot-accent, var(--accent));
+}
+
+[data-theme-id="starfield"] .metro-flyout {
+  border-left: 1px solid var(--border-strong);
+}
+
+[data-theme-id="starfield"] .pocket-header {
+  border-bottom: 2px solid var(--constellation-blue);
+  padding-bottom: 8px;
+}

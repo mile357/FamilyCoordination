@@ -140,3 +140,12 @@ Both `renderAddForm(ctx)` and `renderSlot(ctx)` receive a `ctx` object containin
 | `ctx.emit(eventName, payload)` | Broadcasts a standardized event to any enabled extension declaring `events[eventName]` |
 | `ctx.canHandle(eventName)` | Returns `true` if at least one currently enabled extension handles `eventName` |
 
+### Optional Idle Attract Mode Hooks
+
+After 3 minutes of inactivity, the host automatically slow-scrolls any overflowing `.double-pane`, `.chore-scroll-list`, or `.slot-body` containers and cycles `.sub-pivots .pivot-tab` tabs with randomized delays/durations. Extensions can customize this behavior with optional properties:
+
+- `disableAttractScroll: true` — opt out of generic host auto-scrolling (e.g. when managing synchronized scroll-to-highlight).
+- `onAttractStep(ctx, stepData)` — custom per-tick action (e.g. animated pivot switching or sequential item highlighting); optionally return `{ nextDelayMs }` to set the delay before the next step.
+- `onAttractStop(ctx, stepData)` — cleanup hook invoked immediately when user activity ends attract mode.
+
+

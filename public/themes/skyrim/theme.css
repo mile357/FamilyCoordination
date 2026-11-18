@@ -1,0 +1,343 @@
+/*
+ * Skyrim Theme — Nordic Forged Iron (Dark) & Elder Scroll Parchment (Light)
+ * Carved Cinzel stone typography, tarnished brass corner brackets,
+ * compass-diamond dividers, and subtle arcane Magicka glow.
+ */
+
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/cinzel-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/cinzel-700.woff2") format("woff2");
+}
+
+[data-theme-id="skyrim"] {
+  --font-display: "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+
+  --title-size: 34px;
+  --title-weight: 700;
+  --title-letter-spacing: 0.08em;
+  --title-tracking: 0.08em;
+  --slot-title-size: 20px;
+  --slot-title-weight: 700;
+  --slot-title-letter-spacing: 0.06em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0.005em;
+
+  --clock-size: 32px;
+  --clock-weight: 600;
+  --date-size: 15px;
+  --date-weight: 600;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --bg-canvas: #090b0d;
+  --bg-canvas-image:
+    radial-gradient(ellipse 65% 45% at 20% 8%, rgba(94, 194, 214, 0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 50% at 85% 90%, rgba(212, 175, 55, 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 90% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  --bg-header: rgba(11, 14, 18, 0.90);
+  --bg-surface: #12151a;
+  --bg-surface-elevated: #1b2028;
+  --bg-tile: #12151a;
+  --bg-tile-hover: #1b2028;
+  --bg-tile-subtle: rgba(237, 230, 214, 0.04);
+  --bg-appbar: #0e1115;
+  --bg-input: #0a0c0f;
+  --bg-flyout: #0f1217;
+  --bg-backdrop: rgba(4, 5, 7, 0.78);
+  --bg-wireframe-overlay: rgba(9, 11, 13, 0.88);
+
+  --text-primary: #ede6d6;
+  --text-secondary: #b7ae9d;
+  --text-muted: #8e8575;
+
+  --skyrim-iron: #59554d;
+  --skyrim-gold: #c9a653;
+
+  --border-color: rgba(182, 165, 132, 0.24);
+  --border-strong: rgba(201, 166, 83, 0.65);
+
+  --danger-color: #c93b3b;
+  --danger-text: #f07575;
+  --success-color: #45a863;
+  --warning-color: #d4af37;
+  --info-color: #5ec2d6;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+
+  --radius-slot: 2px;
+  --radius-card: 2px;
+  --radius-btn: 2px;
+  --radius-input: 2px;
+  --radius-pill: 2px;
+  --radius-checkbox: 2px;
+
+  --shadow-slot: 0 10px 28px rgba(0, 0, 0, 0.58);
+  --shadow-card: none;
+  --shadow-flyout: -10px 0 36px rgba(0, 0, 0, 0.78);
+
+  --slot-border: 1px solid rgba(182, 165, 132, 0.26);
+  --slot-border-top: 1px solid rgba(201, 166, 83, 0.45);
+  --card-border: 1px solid rgba(182, 165, 132, 0.16);
+  --header-border-bottom: 1px solid rgba(201, 166, 83, 0.36);
+
+  --scrollbar-track: #0c0e11;
+  --scrollbar-thumb: rgba(201, 166, 83, 0.38);
+  --scrollbar-thumb-hover: var(--skyrim-gold);
+}
+
+/* Elder Scroll Parchment Tome Light Mode */
+[data-theme-id="skyrim"][data-theme="light"] {
+  --bg-canvas: #e3d3b4;
+  --bg-canvas-image:
+    radial-gradient(ellipse 68% 58% at 24% 16%, rgba(255, 248, 228, 0.50) 0%, transparent 72%),
+    radial-gradient(ellipse 95% 95% at 50% 50%, transparent 52%, rgba(110, 74, 30, 0.20) 100%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(110, 78, 38, 0.018) 0px,
+      rgba(110, 78, 38, 0.018) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+  --bg-header: rgba(227, 211, 180, 0.94);
+  --bg-surface: #f2e6cc;
+  --bg-surface-elevated: #faf1de;
+  --bg-tile: #f2e6cc;
+  --bg-tile-hover: #faf1de;
+  --bg-tile-subtle: rgba(94, 68, 34, 0.075);
+  --bg-appbar: #d9c6a2;
+  --bg-input: #faf3e4;
+  --bg-flyout: #efe2c5;
+  --bg-backdrop: rgba(30, 22, 14, 0.45);
+  --bg-wireframe-overlay: rgba(227, 211, 180, 0.92);
+
+  --text-primary: #1b150f;
+  --text-secondary: #4a3d2d;
+  --text-muted: #6b5a45;
+
+  --skyrim-iron: #736149;
+  --skyrim-gold: #8a641b;
+
+  --border-color: rgba(105, 82, 48, 0.32);
+  --border-strong: rgba(138, 100, 27, 0.70);
+
+  --danger-color: #9e2222;
+  --danger-text: #851818;
+  --success-color: #216337;
+  --warning-color: #82590e;
+  --info-color: #1b6578;
+
+  --shadow-slot: 0 6px 20px rgba(62, 42, 18, 0.14);
+  --shadow-flyout: -8px 0 28px rgba(45, 30, 14, 0.24);
+
+  --slot-border: 1px solid rgba(105, 82, 48, 0.42);
+  --slot-border-top: 1px solid rgba(138, 100, 27, 0.62);
+  --card-border: 1px solid rgba(105, 82, 48, 0.24);
+  --header-border-bottom: 1px solid rgba(138, 100, 27, 0.48);
+
+  --scrollbar-track: #d9c6a2;
+  --scrollbar-thumb: rgba(115, 97, 73, 0.45);
+  --scrollbar-thumb-hover: #6b5a45;
+}
+
+[data-theme-id="skyrim"] .panorama-title {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+[data-theme-id="skyrim"] .clock-time,
+[data-theme-id="skyrim"] .clock-date {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+[data-theme-id="skyrim"] .ev-time,
+[data-theme-id="skyrim"] .hour-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Carved Stone & Tarnished Brass Corner Brackets */
+[data-theme-id="skyrim"] .metro-slot:not(.arrange-wireframe) {
+  padding: 14px 16px;
+  background-color: var(--bg-tile);
+  background-image:
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold)),
+    linear-gradient(var(--skyrim-gold), var(--skyrim-gold));
+  background-repeat: no-repeat;
+  background-size:
+    14px 2px, 2px 14px,
+    14px 2px, 2px 14px,
+    14px 2px, 2px 14px,
+    14px 2px, 2px 14px;
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+  box-shadow:
+    inset 0 0 0 4px var(--bg-tile),
+    inset 0 0 0 5px color-mix(in srgb, var(--skyrim-iron) 45%, transparent),
+    var(--shadow-slot);
+}
+
+[data-theme-id="skyrim"][data-theme="light"] .metro-slot:not(.arrange-wireframe) {
+  box-shadow:
+    inset 0 0 26px rgba(120, 82, 34, 0.11),
+    inset 0 0 0 4px var(--bg-tile),
+    inset 0 0 0 5px color-mix(in srgb, var(--skyrim-iron) 48%, transparent),
+    var(--shadow-slot);
+}
+
+[data-theme-id="skyrim"] .slot-header {
+  position: relative;
+  border-bottom: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--skyrim-gold) 58%, transparent) 16%,
+      color-mix(in srgb, var(--skyrim-gold) 58%, transparent) 84%,
+      transparent 100%
+    )
+    left bottom / 100% 1px no-repeat;
+  padding: 6px 4px 10px 4px;
+  margin-bottom: 4px;
+}
+
+/* Skyrim Runic Concentric Compass Diamond */
+[data-theme-id="skyrim"] .slot-header::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bg-tile);
+  border: 1.5px solid var(--skyrim-gold);
+  box-shadow:
+    inset 0 0 0 2px var(--bg-tile),
+    inset 0 0 0 4px var(--slot-accent, var(--skyrim-gold));
+  pointer-events: none;
+}
+
+[data-theme-id="skyrim"] .slot-title {
+  color: var(--slot-accent-text, var(--text-primary));
+  text-shadow: 0 0 14px color-mix(in srgb, var(--slot-accent, var(--accent)) 25%, transparent);
+}
+
+/* Subtle Carved Runic Diamond Shard */
+[data-theme-id="skyrim"] .slot-title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 9px;
+  vertical-align: 2px;
+  background: var(--slot-accent, var(--skyrim-gold));
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+[data-theme-id="skyrim"][data-theme="light"] .slot-title {
+  text-shadow: none;
+}
+
+[data-theme-id="skyrim"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+/* Beveled Stone-Cut Buttons & Gem Checkboxes */
+[data-theme-id="skyrim"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+}
+
+[data-theme-id="skyrim"] .metro-btn:focus-visible {
+  outline-offset: -3px;
+}
+
+[data-theme-id="skyrim"] .metro-checkbox {
+  border: 1.5px solid color-mix(in srgb, var(--slot-accent, var(--skyrim-gold)) 65%, var(--border-strong));
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+}
+
+[data-theme-id="skyrim"] .metro-input {
+  border: 1px solid var(--border-color);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme-id="skyrim"] .metro-input:focus {
+  border-color: var(--skyrim-gold);
+}
+
+[data-theme-id="skyrim"] .sub-pivots {
+  background: var(--bg-tile);
+  gap: 12px;
+  box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+[data-theme-id="skyrim"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="skyrim"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  padding: 6px 4px 8px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-theme-id="skyrim"] .settings-pivots .pivot-tab {
+  font-size: 14.5px;
+}
+
+[data-theme-id="skyrim"] .pivot-tab.active {
+  color: var(--slot-accent-text, var(--accent-text));
+  border-bottom-color: var(--slot-accent, var(--skyrim-gold));
+}
+
+[data-theme-id="skyrim"] .metro-flyout {
+  border-left: 1px solid var(--skyrim-gold);
+}
+
+[data-theme-id="skyrim"] .toast-banner {
+  border: 1px solid var(--skyrim-gold);
+}
+
+[data-theme-id="skyrim"] .pocket-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--skyrim-gold) 45%, transparent);
+  padding-bottom: 8px;
+}

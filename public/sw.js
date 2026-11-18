@@ -4,10 +4,12 @@
  * live LAN state and asset edits are never trapped behind a stale cache.
  */
 
-const CACHE_NAME = "metro-family-hub-v42";
+const CACHE_NAME = "metro-family-hub-v44";
 const CORE_ASSETS = [
   "/",
   "/index.html",
+  "/go.html",
+  "/styles.css",
   "/manifest.json",
   "/icon.svg",
   "/icon-192.png",
@@ -42,6 +44,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(req)

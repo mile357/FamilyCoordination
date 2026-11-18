@@ -1,0 +1,278 @@
+/*
+ * Game Boy / 16-Bit Theme — DMG Olive LCD (Light) & Atomic Purple Console (Dark)
+ * Crisp Silkscreen pixel headers, pixel-stepped bezel shadows, tactile A/B buttons,
+ * and readable body text for family schedules and chore boards.
+ */
+
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/silkscreen-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/silkscreen-700.woff2") format("woff2");
+}
+
+[data-theme-id="gameboy"] {
+  --font-display: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Silkscreen", ui-monospace, Menlo, monospace;
+
+  --title-size: 28px;
+  --title-weight: 700;
+  --title-letter-spacing: 0.02em;
+  --title-tracking: 0.02em;
+  --slot-title-size: 16px;
+  --slot-title-weight: 700;
+  --slot-title-letter-spacing: 0.02em;
+  --card-title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-body: 0;
+
+  --clock-size: 28px;
+  --clock-weight: 700;
+  --date-size: 12px;
+  --date-weight: 400;
+
+  --title-transform: uppercase;
+  --slot-title-transform: uppercase;
+  --section-transform: uppercase;
+  --label-transform: uppercase;
+  --btn-transform: uppercase;
+  --badge-transform: uppercase;
+  --clock-transform: uppercase;
+  --date-transform: uppercase;
+  --agenda-day-transform: uppercase;
+
+  --radius-slot: 4px;
+  --radius-card: 2px;
+  --radius-btn: 4px;
+  --radius-input: 2px;
+  --radius-pill: 4px;
+  --radius-badge: 2px;
+  --radius-chip: 2px;
+  --radius-checkbox: 2px;
+}
+
+/* DMG-01 Olive Dot-Matrix LCD Light Mode (Default) */
+[data-theme-id="gameboy"][data-theme="light"],
+[data-theme-id="gameboy"] {
+  --bg-canvas: #c4cfa1;
+  --bg-canvas-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(15, 38, 18, 0.03) 0px,
+      rgba(15, 38, 18, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(15, 38, 18, 0.03) 0px,
+      rgba(15, 38, 18, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  --bg-header: #b8c493;
+  --bg-surface: #dce4c2;
+  --bg-surface-elevated: #eaf0d6;
+  --bg-tile: #dce4c2;
+  --bg-tile-hover: #e7eed0;
+  --bg-tile-subtle: rgba(15, 38, 18, 0.07);
+  --bg-appbar: #aebc87;
+  --bg-input: #eaf0d6;
+  --bg-flyout: #d4deb7;
+  --bg-backdrop: rgba(15, 38, 18, 0.45);
+  --bg-wireframe-overlay: rgba(196, 207, 161, 0.90);
+
+  --text-primary: #0f2612;
+  --text-secondary: #26472a;
+  --text-muted: #3e6342;
+
+  --border-color: #6b8260;
+  --border-strong: #0f2612;
+  --gb-shadow: #305033;
+
+  --danger-color: #9b1b5a;
+  --danger-text: #821349;
+  --success-color: #166534;
+  --warning-color: #92400e;
+  --info-color: #1d4ed8;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+
+  --slot-border: 2px solid #0f2612;
+  --slot-border-top: 4px solid var(--slot-accent, #9b1b5a);
+  --card-border: 1.5px solid #4e6949;
+  --header-border-bottom: 3px solid #0f2612;
+  --shadow-slot: 4px 4px 0 #305033;
+  --shadow-card: none;
+  --shadow-flyout: -4px 0 0 #0f2612;
+
+  --scrollbar-track: #b4c28e;
+  --scrollbar-thumb: #597352;
+  --scrollbar-thumb-hover: #0f2612;
+}
+
+/* GBC Atomic Purple / 16-Bit Night Dark Mode */
+[data-theme-id="gameboy"][data-theme="dark"] {
+  --bg-canvas: #161224;
+  --bg-canvas-image:
+    radial-gradient(ellipse 70% 50% at 20% 10%, rgba(139, 92, 246, 0.14) 0%, transparent 65%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  --bg-header: #1c172e;
+  --bg-surface: #201b34;
+  --bg-surface-elevated: #2a2345;
+  --bg-tile: #201b34;
+  --bg-tile-hover: #2c2447;
+  --bg-tile-subtle: rgba(167, 139, 250, 0.08);
+  --bg-appbar: #191429;
+  --bg-input: #141022;
+  --bg-flyout: #1d1830;
+  --bg-backdrop: rgba(8, 5, 16, 0.78);
+  --bg-wireframe-overlay: rgba(22, 18, 36, 0.90);
+
+  --text-primary: #f3efff;
+  --text-secondary: #c4b8eb;
+  --text-muted: #9384c4;
+
+  --border-color: #4f417d;
+  --border-strong: #a78bfa;
+  --gb-shadow: #090710;
+
+  --danger-color: #f43f5e;
+  --danger-text: #fda4af;
+  --success-color: #34d399;
+  --warning-color: #fbbf24;
+  --info-color: #60a5fa;
+  --current-hour-bg: color-mix(in srgb, var(--accent) 16%, transparent);
+
+  --slot-border: 2px solid #59498c;
+  --slot-border-top: 4px solid var(--slot-accent, #a78bfa);
+  --card-border: 1.5px solid #443770;
+  --header-border-bottom: 3px solid #59498c;
+  --shadow-slot: 4px 4px 0 #090710;
+  --shadow-flyout: -4px 0 0 #090710;
+
+  --scrollbar-track: #181326;
+  --scrollbar-thumb: #554587;
+  --scrollbar-thumb-hover: #a78bfa;
+}
+
+/* Signature DMG Dual Magenta & Navy Accent Strip */
+[data-theme-id="gameboy"] .panorama-header {
+  position: relative;
+}
+
+[data-theme-id="gameboy"] .panorama-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 3px;
+  background: linear-gradient(90deg, #9b1b5a 0%, #9b1b5a 50%, #303568 50%, #303568 100%);
+  pointer-events: none;
+}
+
+[data-theme-id="gameboy"] .clock-time,
+[data-theme-id="gameboy"] .clock-date {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme-id="gameboy"] .metro-slot:not(.arrange-wireframe) {
+  padding: 12px 14px;
+  background-color: var(--bg-tile);
+}
+
+[data-theme-id="gameboy"] .slot-header {
+  border-bottom: 2px dashed var(--border-color);
+  padding: 4px 2px 9px 2px;
+  margin-bottom: 4px;
+}
+
+[data-theme-id="gameboy"] .slot-title {
+  color: var(--slot-accent-text, var(--text-primary));
+}
+
+[data-theme-id="gameboy"] .slot-body {
+  padding: 8px 2px 2px 2px;
+}
+
+[data-theme-id="gameboy"] .metro-btn {
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 2px solid var(--border-strong);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.18), inset 2px 2px 0 rgba(255, 255, 255, 0.22), 2px 2px 0 var(--gb-shadow);
+  padding: 7px 12px;
+}
+
+[data-theme-id="gameboy"] .metro-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--gb-shadow);
+}
+
+[data-theme-id="gameboy"] .metro-input {
+  border: 2px solid var(--border-strong);
+}
+
+[data-theme-id="gameboy"] .metro-checkbox {
+  border: 2px solid var(--border-strong);
+}
+
+[data-theme-id="gameboy"] .sub-pivots {
+  background: var(--bg-tile);
+  box-shadow: inset 0 -2px 0 var(--border-color);
+  gap: 6px;
+}
+
+[data-theme-id="gameboy"] .settings-pivots {
+  background: transparent;
+}
+
+[data-theme-id="gameboy"] .pivot-tab {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 8px 7px;
+  border-bottom: 3px solid transparent;
+}
+
+[data-theme-id="gameboy"] .settings-pivots .pivot-tab {
+  font-size: 12px;
+}
+
+[data-theme-id="gameboy"] .pivot-tab.active {
+  background: var(--slot-accent, var(--accent));
+  color: var(--slot-accent-fg, var(--accent-fg, #ffffff));
+  border-bottom-color: var(--border-strong);
+}
+
+[data-theme-id="gameboy"] .metro-flyout {
+  border-left: 2px solid var(--border-strong);
+}
+
+[data-theme-id="gameboy"] .toast-banner {
+  border: 2px solid var(--border-strong);
+  box-shadow: 4px 4px 0 var(--gb-shadow);
+}
+
+[data-theme-id="gameboy"] .pocket-header {
+  border-bottom: 2px dashed var(--border-color);
+  padding-bottom: 8px;
+}

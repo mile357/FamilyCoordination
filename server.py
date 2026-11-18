@@ -11,8 +11,10 @@ import ipaddress
 import json
 import os
 import re
+import signal
 import socket
 import sqlite3
+import sys
 import threading
 import time
 import urllib.request
@@ -24,6 +26,8 @@ from zoneinfo import ZoneInfo
 PORT = int(os.environ.get("PORT", 8080))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "hub.db")
+BACKUP_DIR = os.path.join(BASE_DIR, "data", "backups")
+BACKUP_RETENTION_DAYS = max(1, int(os.environ.get("BACKUP_RETENTION_DAYS", "14")))
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
 WEATHER_CACHE = {}
@@ -36,6 +40,7 @@ STATE_LOCK = threading.Lock()
 STATE_CACHE = None
 
 _LAN_ORIGIN_CACHE = {"ts": 0.0, "origin": None}
+_LAN_ORIGIN_LOCK = threading.Lock()
 _LAN_ORIGIN_TTL = 60.0
 ICS_REDACTED_SUFFIX = "/[redacted]"
 
@@ -54,7 +59,6 @@ def get_initial_state():
             "themeId": "metro",
             "themeAccents": {},
             "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
-            "kioskMode": False,
             "keepScreenAwake": True,
         },
         "extensions": {},
@@ -188,6 +192,7 @@ def _connect_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     try:
+        conn.execute("PRAGMA synchronous=NORMAL")
         yield conn
     finally:
         conn.close()
@@ -207,9 +212,10 @@ def get_lan_origin():
             return first_url
 
     now_ts = time.time()
-    cached = _LAN_ORIGIN_CACHE.get("origin")
-    if cached and (now_ts - _LAN_ORIGIN_CACHE.get("ts", 0.0) < _LAN_ORIGIN_TTL):
-        return cached
+    with _LAN_ORIGIN_LOCK:
+        cached = _LAN_ORIGIN_CACHE.get("origin")
+        if cached and (now_ts - _LAN_ORIGIN_CACHE.get("ts", 0.0) < _LAN_ORIGIN_TTL):
+            return cached
 
     origin = f"http://localhost:{PORT}"
     try:
@@ -221,8 +227,9 @@ def get_lan_origin():
     except Exception:
         pass
 
-    _LAN_ORIGIN_CACHE["ts"] = now_ts
-    _LAN_ORIGIN_CACHE["origin"] = origin
+    with _LAN_ORIGIN_LOCK:
+        _LAN_ORIGIN_CACHE["ts"] = now_ts
+        _LAN_ORIGIN_CACHE["origin"] = origin
     return origin
 
 
@@ -258,6 +265,10 @@ def _redact_state_for_client(state_obj):
 def _validate_and_normalize_state(payload):
     if not isinstance(payload, dict):
         raise ValueError("State payload must be a JSON object")
+
+    meaningful_keys = {k for k in payload.keys() if not str(k).startswith("_")}
+    if not meaningful_keys:
+        raise ValueError("State payload cannot be empty")
 
     defaults = get_initial_state()["settings"]
     if "settings" in payload:
@@ -322,7 +333,7 @@ def _validate_and_normalize_state(payload):
             if not isinstance(bucket, dict):
                 raise ValueError(f"slotData bucket '{slot_id}' must be an object")
 
-    for list_key in (
+    core_list_keys = (
         "trashedWidgets",
         "calendars",
         "events",
@@ -331,7 +342,8 @@ def _validate_and_normalize_state(payload):
         "notes",
         "mealCatalog",
         "activeMeals",
-    ):
+    )
+    for list_key in core_list_keys:
         if list_key in payload:
             if not isinstance(payload[list_key], list):
                 raise ValueError(f"Field '{list_key}' must be a list")
@@ -339,7 +351,25 @@ def _validate_and_normalize_state(payload):
                 if not isinstance(item, dict):
                     raise ValueError(f"Each entry in '{list_key}' must be an object")
 
+    reserved_keys = {"settings", "extensions", "columns", "slotData", *core_list_keys}
+    for custom_key, custom_val in payload.items():
+        if str(custom_key).startswith("_") or custom_key in reserved_keys:
+            continue
+        if not isinstance(custom_val, (list, dict)):
+            raise ValueError(f"Custom extension field '{custom_key}' must be a list or object")
+
     return payload
+
+
+def _parse_stored_state_json(raw_json):
+    """Parse state_json from SQLite, returning (parsed_dict, is_valid)."""
+    try:
+        parsed = json.loads(raw_json)
+        if isinstance(parsed, dict):
+            return parsed, True
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return get_initial_state(), False
 
 
 def init_db():
@@ -347,6 +377,7 @@ def init_db():
     with STATE_LOCK:
         with _connect_db() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS app_state ("
                 "id INTEGER PRIMARY KEY CHECK (id = 1), "
@@ -366,8 +397,17 @@ def init_db():
                 )
                 STATE_CACHE = initial
             else:
-                state = json.loads(row[0])
-                state["_updatedAt"] = row[1]
+                state, is_valid = _parse_stored_state_json(row[0])
+                if not is_valid:
+                    now_iso = _now_token()
+                    state["_updatedAt"] = now_iso
+                    conn.execute(
+                        "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?) "
+                        "ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at",
+                        (json.dumps(state), now_iso),
+                    )
+                else:
+                    state["_updatedAt"] = row[1]
                 STATE_CACHE = state
             conn.commit()
 
@@ -383,8 +423,8 @@ def read_state(redact=True):
                     "SELECT state_json, updated_at FROM app_state WHERE id = 1"
                 ).fetchone()
             if row:
-                state = json.loads(row[0])
-                state["_updatedAt"] = row[1]
+                state, is_valid = _parse_stored_state_json(row[0])
+                state["_updatedAt"] = row[1] if is_valid else _now_token()
                 STATE_CACHE = state
                 raw = copy.deepcopy(STATE_CACHE)
             else:
@@ -411,8 +451,12 @@ def write_state(new_state, expected_updated_at=None, redact=True):
             row = conn.execute(
                 "SELECT state_json, updated_at FROM app_state WHERE id = 1"
             ).fetchone()
-            current_state = json.loads(row[0]) if row else {}
-            current_updated_at = row[1] if row else None
+            if row:
+                current_state, _ = _parse_stored_state_json(row[0])
+                current_updated_at = row[1]
+            else:
+                current_state = {}
+                current_updated_at = None
 
             if row and expected_updated_at:
                 if current_updated_at != expected_updated_at:
@@ -441,7 +485,8 @@ def write_state(new_state, expected_updated_at=None, redact=True):
             new_state.pop("_lanOrigin", None)
             new_state["_updatedAt"] = now_iso
             conn.execute(
-                "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
+                "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at",
                 (json.dumps(new_state), now_iso),
             )
             conn.commit()
@@ -452,6 +497,71 @@ def write_state(new_state, expected_updated_at=None, redact=True):
     res = copy.deepcopy(new_state)
     res["_lanOrigin"] = get_lan_origin()
     return True, res
+
+
+def create_daily_backup(now_dt=None):
+    """
+    Write an atomic daily JSON snapshot of the full unredacted hub state to
+    `data/backups/hub-backup-YYYY-MM-DD.json` and prune backups older than BACKUP_RETENTION_DAYS.
+    Returns the path of the created backup file.
+    """
+    now = now_dt or datetime.now()
+    date_tag = now.strftime("%Y-%m-%d")
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    target_path = os.path.join(BACKUP_DIR, f"hub-backup-{date_tag}.json")
+    tmp_path = os.path.join(BACKUP_DIR, f".hub-backup-{date_tag}.json.tmp")
+
+    snapshot = read_state(redact=False)
+    snapshot.pop("_lanOrigin", None)
+
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(snapshot, fh, indent=2)
+    os.replace(tmp_path, target_path)
+
+    # Prune old rolling backups beyond BACKUP_RETENTION_DAYS
+    try:
+        backups = sorted(
+            f
+            for f in os.listdir(BACKUP_DIR)
+            if f.startswith("hub-backup-") and f.endswith(".json")
+        )
+        if len(backups) > BACKUP_RETENTION_DAYS:
+            for old_name in backups[: len(backups) - BACKUP_RETENTION_DAYS]:
+                with contextlib.suppress(OSError):
+                    os.remove(os.path.join(BACKUP_DIR, old_name))
+    except OSError:
+        pass
+
+    return target_path
+
+
+def _backup_scheduler_loop(stop_event):
+    """Background daemon loop that writes a rolling backup every day at 3:00 AM local time."""
+    last_backup_date = None
+    while not stop_event.is_set():
+        try:
+            now = datetime.now()
+            today_str = now.strftime("%Y-%m-%d")
+            if now.hour >= 3 and last_backup_date != today_str:
+                target_path = os.path.join(BACKUP_DIR, f"hub-backup-{today_str}.json")
+                if not os.path.isfile(target_path):
+                    create_daily_backup(now)
+                last_backup_date = today_str
+        except Exception:
+            pass
+        stop_event.wait(60.0)
+
+
+def start_backup_scheduler():
+    stop_event = threading.Event()
+    t = threading.Thread(
+        target=_backup_scheduler_loop,
+        args=(stop_event,),
+        name="DailyBackupScheduler",
+        daemon=True,
+    )
+    t.start()
+    return stop_event
 
 
 def _is_public_ip(ip_str):
@@ -477,8 +587,33 @@ def _is_public_ip(ip_str):
     )
 
 
+def _is_lan_ics_allowed():
+    return os.environ.get("ALLOW_LAN_ICS", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _is_allowed_ics_ip(ip_str):
+    if _is_public_ip(ip_str):
+        return True
+    if not _is_lan_ics_allowed():
+        return False
+    clean_ip = str(ip_str).split("%", 1)[0]
+    ip = ipaddress.ip_address(clean_ip)
+    if getattr(ip, "ipv4_mapped", None) is not None:
+        ip = ip.ipv4_mapped
+    return bool(
+        (ip.is_private or ip.is_loopback)
+        and not ip.is_link_local
+        and not ip.is_multicast
+        and not ip.is_unspecified
+        and not ip.is_reserved
+    )
+
+
 def _validate_public_ics_url(raw_url):
-    """Ensure calendar feed URL uses http/https and resolves only to global public IP addresses (anti-SSRF)."""
+    """
+    Ensure calendar feed URL uses http/https and resolves only to allowed IP addresses
+    (global public IPs by default, or private LAN IPs when ALLOW_LAN_ICS=1).
+    """
     parsed = urlparse(raw_url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise ValueError("Invalid calendar URL scheme or host")
@@ -486,7 +621,7 @@ def _validate_public_ics_url(raw_url):
     if not addr_list:
         raise ValueError("Could not resolve calendar host")
     for *_, sockaddr in addr_list:
-        if not _is_public_ip(sockaddr[0]):
+        if not _is_allowed_ics_ip(sockaddr[0]):
             raise ValueError("Refusing to fetch private, CGNAT, or non-global address")
     return raw_url
 
@@ -495,7 +630,7 @@ def _verify_socket_peer(sock):
     if sock is not None and hasattr(sock, "getpeername"):
         peer = sock.getpeername()
         if peer and isinstance(peer, tuple) and len(peer) >= 1:
-            if not _is_public_ip(peer[0]):
+            if not _is_allowed_ics_ip(peer[0]):
                 with contextlib.suppress(Exception):
                     sock.close()
                 raise ValueError("Refusing connection to non-global peer IP address")
@@ -699,30 +834,33 @@ def _parse_ics_duration(raw_dur):
 
 
 def _parse_ics_datetime(raw_line, custom_tz_map=None):
-    """Parse iCalendar DTSTART/DTEND line into (iso_str, is_all_day)."""
+    """Parse iCalendar DTSTART/DTEND line into (iso_str, is_all_day). Returns (None, False) if malformed."""
     _, params, val = _split_ics_line(raw_line)
     if not val:
         return None, False
 
-    # Date-only (all-day event): YYYYMMDD or VALUE=DATE
-    if params.get("VALUE", "").upper() == "DATE" or (len(val) == 8 and val.isdigit()):
-        if len(val) >= 8 and val[:8].isdigit():
-            dt = datetime.strptime(val[:8], "%Y%m%d").replace(hour=0, minute=0, second=0)
-            return dt.isoformat(), True
+    try:
+        # Date-only (all-day event): YYYYMMDD or VALUE=DATE
+        if params.get("VALUE", "").upper() == "DATE" or (len(val) == 8 and val.isdigit()):
+            if len(val) >= 8 and val[:8].isdigit():
+                dt = datetime.strptime(val[:8], "%Y%m%d").replace(hour=0, minute=0, second=0)
+                return dt.isoformat(), True
 
-    # Date-time: YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ
-    m = re.match(r"^(\d{8})T(\d{4,6})(Z?)$", val)
-    if m:
-        date_part, time_part, is_utc = m.groups()
-        time_part = time_part[:6].ljust(6, "0")
-        dt = datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
-        if is_utc == "Z":
-            dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
-        elif "TZID" in params:
-            tz = _resolve_tzinfo(params["TZID"], custom_tz_map=custom_tz_map)
-            if tz is not None:
-                dt = dt.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
-        return dt.isoformat(), False
+        # Date-time: YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ
+        m = re.match(r"^(\d{8})T(\d{4,6})(Z?)$", val)
+        if m:
+            date_part, time_part, is_utc = m.groups()
+            time_part = time_part[:6].ljust(6, "0")
+            dt = datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
+            if is_utc == "Z":
+                dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+            elif "TZID" in params:
+                tz = _resolve_tzinfo(params["TZID"], custom_tz_map=custom_tz_map)
+                if tz is not None:
+                    dt = dt.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
+            return dt.isoformat(), False
+    except (ValueError, TypeError, OverflowError):
+        return None, False
     return None, False
 
 
@@ -1152,7 +1290,9 @@ def fetch_weather_for_zip(zip_code):
 
     loc = _resolve_coordinates(zip_code)
     if not loc:
-        return None
+        with WEATHER_LOCK:
+            fallback = WEATHER_CACHE.get(cache_key)
+            return copy.deepcopy(fallback["data"]) if fallback else None
     try:
         lat = loc["lat"]
         lon = loc["lon"]
@@ -1166,6 +1306,9 @@ def fetch_weather_for_zip(zip_code):
         req_wx = urllib.request.Request(wx_url, headers={"User-Agent": "MetroFamilyHub/1.0"})
         with urllib.request.urlopen(req_wx, timeout=8) as resp:
             wx_data = json.loads(resp.read(MAX_BODY_BYTES).decode("utf-8"))
+
+        if not isinstance(wx_data, dict) or wx_data.get("error"):
+            raise ValueError("Upstream weather API error")
 
         cur = wx_data.get("current") or {}
         daily = wx_data.get("daily") or {}
@@ -1274,6 +1417,9 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         if getattr(self, "path", "").split("?", 1)[0] == "/sw.js":
             self.send_header("Service-Worker-Allowed", "/")
         super().end_headers()
@@ -1285,6 +1431,17 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    @staticmethod
+    def _normalize_host(raw_netloc):
+        if not raw_netloc:
+            return ""
+        clean = str(raw_netloc).strip().lower()
+        for default_port in (":80", ":443"):
+            if clean.endswith(default_port):
+                clean = clean[: -len(default_port)]
+                break
+        return clean
 
     def _check_csrf(self):
         sec_fetch_site = self.headers.get("Sec-Fetch-Site")
@@ -1299,14 +1456,31 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
             return False
 
         origin = self.headers.get("Origin")
-        host = self.headers.get("Host")
         if origin is not None:
             parsed_origin = urlparse(origin.strip())
-            if (
-                not host
-                or not parsed_origin.netloc
-                or parsed_origin.netloc.lower() != host.strip().lower()
-            ):
+            origin_host = self._normalize_host(parsed_origin.netloc)
+            allowed_hosts = set()
+            raw_host = self.headers.get("Host")
+            if raw_host:
+                allowed_hosts.add(self._normalize_host(raw_host))
+            raw_fwd_host = self.headers.get("X-Forwarded-Host")
+            if raw_fwd_host:
+                for part in raw_fwd_host.split(","):
+                    norm_part = self._normalize_host(part)
+                    if norm_part:
+                        allowed_hosts.add(norm_part)
+            env_origin = (os.environ.get("PUBLIC_ORIGIN") or os.environ.get("COOLIFY_URL") or "").strip()
+            if env_origin:
+                for raw_url in env_origin.split(","):
+                    raw_url = raw_url.strip()
+                    if raw_url:
+                        if not raw_url.startswith(("http://", "https://")):
+                            raw_url = f"http://{raw_url}"
+                        norm_env = self._normalize_host(urlparse(raw_url).netloc)
+                        if norm_env:
+                            allowed_hosts.add(norm_env)
+            allowed_hosts.discard("")
+            if not origin_host or not allowed_hosts or origin_host not in allowed_hosts:
                 self._send_json(
                     {"ok": False, "error": "Origin header does not match Host"},
                     status=403,
@@ -1349,7 +1523,7 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
             # Fetch feeds outside STATE_LOCK so slow feeds never block other requests or overwrite concurrent edits
             synced_results = {}
             feed_errors = []
-            sync_time_str = datetime.now().strftime("%-I:%M %p").lower()
+            sync_time_str = datetime.now().strftime("%I:%M %p").lstrip("0").lower()
 
             for cal_id, cal_name, ics_url in feeds_to_sync:
                 try:
@@ -1375,7 +1549,7 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                     row = conn.execute(
                         "SELECT state_json, updated_at FROM app_state WHERE id = 1"
                     ).fetchone()
-                    latest = json.loads(row[0]) if row else get_initial_state()
+                    latest = _parse_stored_state_json(row[0])[0] if row else get_initial_state()
 
                     still_existing_cal_ids = {
                         c.get("id")
@@ -1413,7 +1587,8 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                     latest.pop("_lanOrigin", None)
                     latest["_updatedAt"] = now_iso
                     conn.execute(
-                        "UPDATE app_state SET state_json = ?, updated_at = ? WHERE id = 1",
+                        "INSERT INTO app_state (id, state_json, updated_at) VALUES (1, ?, ?) "
+                        "ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at",
                         (json.dumps(latest), now_iso),
                     )
                     conn.commit()
@@ -1441,7 +1616,8 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/extensions":
+        api_path = parsed.path.rstrip("/") if parsed.path.startswith("/api/") else parsed.path
+        if api_path == "/api/extensions":
             ext_dir = os.path.join(PUBLIC_DIR, "extensions")
             found = []
             if os.path.isdir(ext_dir):
@@ -1451,15 +1627,15 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"ok": True, "files": found})
             return
 
-        if parsed.path == "/api/themes":
+        if api_path == "/api/themes":
             self._send_json({"ok": True, "themes": discover_themes()})
             return
 
-        if parsed.path == "/api/state":
+        if api_path == "/api/state":
             self._send_json(read_state(redact=True))
             return
 
-        if parsed.path == "/api/weather":
+        if api_path == "/api/weather":
             self._handle_weather(parsed)
             return
 
@@ -1470,6 +1646,7 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
             return
 
         parsed = urlparse(self.path)
+        api_path = parsed.path.rstrip("/") if parsed.path.startswith("/api/") else parsed.path
         try:
             raw_len = self.headers.get("Content-Length", "0")
             length = int(raw_len)
@@ -1485,7 +1662,7 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
 
         body = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
 
-        if parsed.path == "/api/state":
+        if api_path == "/api/state":
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype != "application/json":
                 self._send_json(
@@ -1511,15 +1688,15 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             return
 
-        if parsed.path == "/api/sync-calendars":
+        if api_path == "/api/sync-calendars":
             self._handle_sync_calendars()
             return
 
-        if parsed.path == "/api/weather":
+        if api_path == "/api/weather":
             self._handle_weather(parsed)
             return
 
-        if parsed.path == "/api/reset":
+        if api_path == "/api/reset":
             self._handle_reset()
             return
 
@@ -1528,11 +1705,14 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     init_db()
+    backup_stop = start_backup_scheduler()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), HubRequestHandler)
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
     print(f"Metro Family Hub running on http://localhost:{PORT}")
     try:
         server.serve_forever()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         print("\nShutting down Metro Family Hub...")
     finally:
+        backup_stop.set()
         server.server_close()

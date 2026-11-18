@@ -9,8 +9,10 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Persists SQLite database (hub.db) on host filesystem
+      # Persists SQLite database (hub.db) and daily 3:00 AM rolling backups (data/backups/) on host filesystem
       - ./data:/app/data
     environment:
       - PORT=8080
       - TZ=America/Los_Angeles # Change to your local timezone
+      # - ALLOW_LAN_ICS=1      # Uncomment to allow syncing self-hosted LAN .ics calendars (Nextcloud, Radicale, etc.)
+      # - BACKUP_RETENTION_DAYS=14 # Number of daily 3:00 AM JSON backups to retain in data/backups/
