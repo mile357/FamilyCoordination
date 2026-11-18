@@ -3,7 +3,7 @@
  * Left Pane: Today's Hour-by-Hour Timeline
  * Right Pane: Next 7 Days Agenda
  */
-import { renderQrSvg } from "../qr.js?v=45";
+import { renderQrSvg } from "../qr.js?v=46";
 
 function buildInitialCalendarState() {
   const today = new Date();
@@ -251,28 +251,26 @@ export default {
           <button class="slot-icon-btn" id="btnInlineSyncCal_${sid}" title="Refresh all live .ics feeds" style="flex-shrink:0;">↻ sync feeds</button>
         </div>
 
-        <div style="display:flex; align-items:stretch; gap:12px; flex-wrap:wrap;">
-          <div class="quick-form" style="margin-bottom:0; flex:1; min-width:320px; align-items:center;">
-            <input class="metro-input" id="newCalName_${sid}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="max-width:200px;" />
-            <select class="metro-input" id="newCalProvider_${sid}" style="max-width:120px;">
-              <option value="google">Google</option>
-              <option value="microsoft">Microsoft</option>
-            </select>
-            <input class="metro-input" id="newCalUrl_${sid}" placeholder="read-only iCal (.ics) feed URL..." style="flex:1;" />
-            <button class="metro-btn accent" id="btnConnectCal_${sid}">+ connect</button>
-          </div>
+        <div class="quick-form" style="margin-bottom:0; flex-wrap:wrap; align-items:center;">
+          <input class="metro-input" id="newCalName_${sid}" placeholder="calendar label (e.g. Work, Kids Sports)..." style="flex:1 1 160px; min-width:140px;" />
+          <select class="metro-input" id="newCalProvider_${sid}" style="flex:0 0 auto; width:auto; min-width:110px;">
+            <option value="google">Google</option>
+            <option value="microsoft">Microsoft</option>
+          </select>
+          <input class="metro-input" id="newCalUrl_${sid}" placeholder="read-only iCal (.ics) feed URL..." style="flex:2 1 220px; min-width:180px;" />
+          <button class="metro-btn accent" id="btnConnectCal_${sid}" style="flex-shrink:0;">+ connect</button>
+        </div>
 
-          <div class="groc-qr-card" style="margin-top:0; padding:8px 12px; max-width:340px;">
-            <div id="calQrBox_${sid}">${calQrSvg}</div>
-            <div class="groc-qr-info">
-              <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--slot-accent-text, var(--slot-accent, #00ABA9));">
-                paste from phone
-              </div>
-              <div class="groc-qr-caption">
-                Scan on home Wi-Fi to paste long <code>.ics</code> links from your phone (<code>${escapeHtml(
-                  origin.replace(/^https?:\/\//, "")
-                )}/go.html?mode=calendar</code>).
-              </div>
+        <div class="groc-qr-card" style="margin-top:0; padding:8px 12px;">
+          <div id="calQrBox_${sid}" style="flex-shrink:0;">${calQrSvg}</div>
+          <div class="groc-qr-info">
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--slot-accent-text, var(--slot-accent, #00ABA9));">
+              paste from phone
+            </div>
+            <div class="groc-qr-caption">
+              Scan on home Wi-Fi to paste long <code>.ics</code> links from your phone (<code>${escapeHtml(
+                origin.replace(/^https?:\/\//, "")
+              )}/go.html?mode=calendar</code>).
             </div>
           </div>
         </div>

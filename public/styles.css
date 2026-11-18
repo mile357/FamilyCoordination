@@ -361,7 +361,7 @@ html, body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-x;
+  touch-action: pan-x pan-y;
 }
 
 .panorama-viewport::-webkit-scrollbar {
@@ -408,6 +408,8 @@ html, body {
   overflow-y: auto;
   padding-right: 4px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-x pan-y;
 }
 
 .double-pane::-webkit-scrollbar {
@@ -787,8 +789,8 @@ html, body {
   overflow-y: auto;
   padding: 6px 18px 18px 18px;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  touch-action: pan-x pan-y;
 }
 
 .slot-body::-webkit-scrollbar {
@@ -1394,6 +1396,7 @@ html, body {
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .weekday-picker {

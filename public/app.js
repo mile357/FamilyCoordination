@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "45";
+const ASSET_VERSION = "46";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -679,6 +679,9 @@ function toggleSlotDrawer(slotId) {
   st.justOpened = st.open;
   if (!st.open) st.mode = null;
   renderAll();
+  if (!st.open) {
+    pollServerState();
+  }
 }
 
 function setSlotDrawerMode(slotId, mode) {
@@ -693,6 +696,7 @@ let lastSyncedSnapshot = {};
 let lastSyncedSlotDataSnapshot = {};
 let isSavingState = false;
 let savePending = false;
+let isPollingState = false;
 
 function snapshotSyncedState(stateObj) {
   if (!stateObj) return;
@@ -755,6 +759,47 @@ function isUserInteracting() {
   return false;
 }
 
+function hasUnsavedDrawerDraft() {
+  const openDrawers = document.querySelectorAll(".slot-command-drawer.open");
+  for (const drawer of openDrawers) {
+    const fields = drawer.querySelectorAll("input, textarea");
+    for (const el of fields) {
+      if (el.tagName === "TEXTAREA") {
+        if (el.value && el.value.trim().length > 0) return true;
+        continue;
+      }
+      const type = (el.getAttribute("type") || "text").toLowerCase();
+      if (
+        type === "checkbox" ||
+        type === "radio" ||
+        type === "color" ||
+        type === "hidden" ||
+        type === "button" ||
+        type === "submit" ||
+        type === "range"
+      ) {
+        continue;
+      }
+      if (el.value && el.value.trim().length > 0) return true;
+    }
+  }
+  return false;
+}
+
+function isUserEditingForPoll() {
+  if (uiState.arrangeMode || uiState.flyoutMode) return true;
+  const activeEl = document.activeElement;
+  if (activeEl) {
+    const tag = activeEl.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || activeEl.isContentEditable) {
+      return true;
+    }
+  }
+  if (document.querySelector(".inline-edit-form")) return true;
+  if (hasUnsavedDrawerDraft()) return true;
+  return false;
+}
+
 // ============================================================================
 // API & STATE PERSISTENCE (SQLite Backend + Optimistic Concurrency + Sync)
 // ============================================================================
@@ -762,7 +807,7 @@ async function loadState() {
   await Promise.all([discoverAndLoadThemes(), discoverAndLoadExtensions()]);
 
   try {
-    const res = await fetch("/api/state");
+    const res = await fetch("/api/state", { cache: "no-store" });
     if (!res.ok) throw new Error("API error");
     appState = await res.json();
   } catch (e) {
@@ -875,7 +920,7 @@ async function persistStateToServer() {
 }
 
 async function pollServerState() {
-  if (!appState || isSavingState || savePending || isUserInteracting()) return;
+  if (!appState || isSavingState || savePending || isPollingState || isUserEditingForPoll()) return;
 
   // If local state has unsynced edits (e.g. after recovering from offline), push first
   if (
@@ -886,15 +931,16 @@ async function pollServerState() {
     return;
   }
 
+  isPollingState = true;
   try {
-    const res = await fetch("/api/state");
+    const res = await fetch("/api/state", { cache: "no-store" });
     if (!res.ok) return;
     const remoteState = await res.json();
     // Re-check after await so an in-flight save or user interaction started during fetch is not clobbered
     if (
       isSavingState ||
       savePending ||
-      isUserInteracting() ||
+      isUserEditingForPoll() ||
       getModifiedTopLevelKeys(appState).length > 0 ||
       getModifiedSlotDataKeys(appState).length > 0
     ) {
@@ -912,14 +958,16 @@ async function pollServerState() {
       applyThemeAndAccent();
       renderAll();
     }
-  } catch (e) {}
+  } catch (e) {} finally {
+    isPollingState = false;
+  }
 }
 
 async function autoSyncCalendars() {
   if (!appState || !Array.isArray(appState.calendars)) return;
   const hasExternalIcs = appState.calendars.some((c) => c && c.icsUrl && String(c.icsUrl).trim());
   if (!hasExternalIcs) return;
-  if (isSavingState || savePending || isUserInteracting()) return;
+  if (isSavingState || savePending || isUserEditingForPoll()) return;
   try {
     const res = await fetch("/api/sync-calendars", { method: "POST" });
     if (res.ok) {
@@ -930,7 +978,7 @@ async function autoSyncCalendars() {
         data.state &&
         !isSavingState &&
         !savePending &&
-        !isUserInteracting() &&
+        !isUserEditingForPoll() &&
         getModifiedTopLevelKeys(appState).length === 0 &&
         getModifiedSlotDataKeys(appState).length === 0
       ) {
@@ -2232,6 +2280,7 @@ function openFlyout(mode, pivot = null) {
 function closeFlyout() {
   uiState.flyoutMode = null;
   document.getElementById("flyoutBackdrop").classList.remove("open");
+  pollServerState();
 }
 
 function renderTrashCards(containerEl, targetColId = null, halfOnly = false) {
@@ -3636,7 +3685,11 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(updateClock, 15000);
   setInterval(refreshWeather, 15 * 60 * 1000);
   setInterval(autoSyncCalendars, 15 * 60 * 1000);
-  setInterval(pollServerState, 15000);
+  setInterval(() => {
+    if (document.visibilityState !== "hidden") {
+      pollServerState();
+    }
+  }, 5000);
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
@@ -3647,6 +3700,13 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("focus", () => {
     pollServerState();
     syncWakeLockWithSettings();
+  });
+  window.addEventListener("pageshow", () => {
+    pollServerState();
+    syncWakeLockWithSettings();
+  });
+  window.addEventListener("online", () => {
+    pollServerState();
   });
 
   const retryWakeOnInteraction = () => {

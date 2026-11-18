@@ -518,8 +518,47 @@ class TestTouchErgonomicsAndCss(unittest.TestCase):
         self.assertIn(
             "touch-action",
             vp_block,
-            "Missing 'touch-action: pan-x' on .panorama-viewport",
+            "Missing 'touch-action' on .panorama-viewport",
         )
+
+        # .slot-body and .double-pane must allow pan-x as well as pan-y so horizontal
+        # swiping across widgets scrolls .panorama-viewport on touchscreens.
+        for selector in (r"\.slot-body", r"\.double-pane"):
+            m_rule = re.search(r"(?:^|\n)" + selector + r"\s*\{([^}]+)\}", css)
+            self.assertIsNotNone(m_rule, f"{selector} rule not found in styles.css")
+            block = m_rule.group(1)
+            m_ta = re.search(r"touch-action:\s*([^;]+);", block)
+            self.assertIsNotNone(m_ta, f"Missing touch-action on {selector}")
+            ta_val = m_ta.group(1)
+            self.assertIn("pan-x", ta_val, f"{selector} touch-action must include pan-x")
+            self.assertIn("pan-y", ta_val, f"{selector} touch-action must include pan-y")
+
+    def test_poll_server_state_no_store_and_open_drawer_sync(self):
+        """
+        pollServerState must bypass HTTP cache (cache: 'no-store') and use isUserEditingForPoll()
+        so an open drawer showing a QR code does not block live multi-device updates.
+        """
+        with open(os.path.join(PUBLIC_DIR, "app.js"), "r", encoding="utf-8") as f:
+            app_js = f.read()
+
+        self.assertIn("function isUserEditingForPoll()", app_js)
+        m_poll = re.search(r"async function pollServerState\(\)\s*\{([\s\S]*?)^\}", app_js, re.MULTILINE)
+        self.assertIsNotNone(m_poll, "pollServerState() not found in app.js")
+        poll_body = m_poll.group(1)
+        self.assertIn("isUserEditingForPoll()", poll_body)
+        self.assertNotIn("isUserInteracting()", poll_body)
+        self.assertIn('cache: "no-store"', poll_body)
+
+    def test_calendar_qr_and_feed_form_do_not_overlap(self):
+        """
+        Calendar add-feed form must allow flex wrapping and not be squeezed beside
+        the Paste-from-Phone QR card inside a single shrinking row.
+        """
+        with open(os.path.join(PUBLIC_DIR, "extensions", "calendar.js"), "r", encoding="utf-8") as f:
+            cal_js = f.read()
+
+        self.assertIn('class="quick-form" style="margin-bottom:0; flex-wrap:wrap;', cal_js)
+        self.assertNotIn('min-width:320px; align-items:center;', cal_js)
 
 
 if __name__ == "__main__":
