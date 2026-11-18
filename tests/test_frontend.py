@@ -560,6 +560,41 @@ class TestTouchErgonomicsAndCss(unittest.TestCase):
         self.assertIn('class="quick-form" style="margin-bottom:0; flex-wrap:wrap;', cal_js)
         self.assertNotIn('min-width:320px; align-items:center;', cal_js)
 
+    def test_new_widget_instances_start_empty(self):
+        """
+        Newly added multi-instance widgets must initialize with clean empty state
+        (getPluginEmptyState) rather than demo data from defaultState.
+        """
+        with open(os.path.join(PUBLIC_DIR, "app.js"), "r", encoding="utf-8") as f:
+            app_js = f.read()
+
+        self.assertIn("function getPluginEmptyState(plugin)", app_js)
+        self.assertIn("ensureSlotDataInitialized(newSlot, false, true)", app_js)
+
+    def test_meals_groceries_ready_lifecycle_events(self):
+        """
+        Meal Planner and Grocery List must coordinate the ready -> ate! workflow
+        strictly through decoupled event-bus intents (no direct cross-extension state access).
+        """
+        with open(os.path.join(PUBLIC_DIR, "extensions", "meals.js"), "r", encoding="utf-8") as f:
+            meals_js = f.read()
+        with open(os.path.join(PUBLIC_DIR, "extensions", "groceries.js"), "r", encoding="utf-8") as f:
+            groc_js = f.read()
+
+        # Meals emits remove-unchecked and count-unchecked, handles ingredients-status, never touches appState.groceries
+        self.assertIn('"groceries:remove-unchecked-by-source"', meals_js)
+        self.assertIn('"groceries:count-unchecked"', meals_js)
+        self.assertIn('"meals:ingredients-status"', meals_js)
+        self.assertIn('data-action="ready-meal"', meals_js)
+        self.assertIn('data-action="ate-meal"', meals_js)
+        self.assertNotIn("appState.groceries", meals_js)
+
+        # Groceries handles remove-unchecked and count-unchecked, emits ingredients-status, never touches appState.activeMeals
+        self.assertIn('"groceries:remove-unchecked-by-source"', groc_js)
+        self.assertIn('"groceries:count-unchecked"', groc_js)
+        self.assertIn('"meals:ingredients-status"', groc_js)
+        self.assertNotIn("appState.activeMeals", groc_js)
+
 
 if __name__ == "__main__":
     unittest.main()

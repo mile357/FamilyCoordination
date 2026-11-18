@@ -3,7 +3,26 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
-import { renderQrSvg } from "../qr.js?v=46";
+import { renderQrSvg } from "../qr.js?v=47";
+
+function countUncheckedForSource(groceries, source) {
+  const target = String(source || "").trim().toLowerCase();
+  if (!target || !Array.isArray(groceries)) return 0;
+  let count = 0;
+  for (const g of groceries) {
+    if (g && !g.checked && g.fromMeal && String(g.fromMeal).trim().toLowerCase() === target) {
+      count++;
+    }
+  }
+  return count;
+}
+
+function notifyMealIngredientsStatus(ctx, source) {
+  const target = String(source || "").trim();
+  if (!target || typeof ctx.emit !== "function") return;
+  const remainingUnchecked = countUncheckedForSource(ctx.appState.groceries, target);
+  ctx.emit("meals:ingredients-status", { source: target, remainingUnchecked });
+}
 
 export default {
   id: "groceries",
@@ -57,6 +76,31 @@ export default {
       });
 
       return { added };
+    },
+
+    "groceries:remove-unchecked-by-source"(payload, ctx) {
+      const { appState } = ctx;
+      const target = String((payload && payload.source) || "").trim().toLowerCase();
+      if (!target || !Array.isArray(appState.groceries)) return { removed: 0 };
+
+      const before = appState.groceries.length;
+      appState.groceries = appState.groceries.filter((g) => {
+        if (!g) return false;
+        const matchesSource =
+          g.fromMeal && String(g.fromMeal).trim().toLowerCase() === target;
+        // Remove only unchecked items for this meal; keep checked items untouched
+        if (matchesSource && !g.checked) return false;
+        return true;
+      });
+      return { removed: before - appState.groceries.length };
+    },
+
+    "groceries:count-unchecked"(payload, ctx) {
+      const target = String((payload && payload.source) || "").trim();
+      if (!target) return { remainingUnchecked: 0 };
+      return {
+        remainingUnchecked: countUncheckedForSource(ctx.appState.groceries, target),
+      };
     },
   },
 
@@ -247,6 +291,9 @@ export default {
       const checkRow = row.querySelector(".check-row");
       const toggleItem = () => {
         item.checked = !item.checked;
+        if (item.fromMeal) {
+          notifyMealIngredientsStatus(ctx, item.fromMeal);
+        }
         saveState();
       };
       checkRow.addEventListener("click", toggleItem);
@@ -260,7 +307,11 @@ export default {
       const delBtn = row.querySelector("button.slot-icon-btn");
       if (delBtn) {
         delBtn.addEventListener("click", () => {
+          const sourceMeal = item.fromMeal;
           appState.groceries = appState.groceries.filter((g) => g.id !== item.id);
+          if (sourceMeal) {
+            notifyMealIngredientsStatus(ctx, sourceMeal);
+          }
           saveState();
         });
       }

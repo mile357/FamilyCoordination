@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "46";
+const ASSET_VERSION = "47";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -171,7 +171,30 @@ function getPluginDefaultState(plugin) {
   return raw && typeof raw === "object" ? JSON.parse(JSON.stringify(raw)) : {};
 }
 
-function ensureSlotDataInitialized(slotConfig, migrateFromGlobal = false) {
+function getPluginEmptyState(plugin) {
+  if (!plugin) return {};
+  if (plugin.emptyState) {
+    const raw =
+      typeof plugin.emptyState === "function"
+        ? plugin.emptyState()
+        : plugin.emptyState;
+    return raw && typeof raw === "object" ? JSON.parse(JSON.stringify(raw)) : {};
+  }
+  const defaults = getPluginDefaultState(plugin);
+  const empty = {};
+  for (const [key, val] of Object.entries(defaults)) {
+    if (Array.isArray(val)) {
+      empty[key] = [];
+    } else if (val && typeof val === "object") {
+      empty[key] = {};
+    } else {
+      empty[key] = val;
+    }
+  }
+  return empty;
+}
+
+function ensureSlotDataInitialized(slotConfig, migrateFromGlobal = false, useEmptyState = false) {
   if (!appState || !slotConfig || !slotConfig.id) return {};
   const plugin = ExtensionRegistry.get(slotConfig.extensionId);
   if (!plugin || !plugin.allowMultiple) {
@@ -180,21 +203,23 @@ function ensureSlotDataInitialized(slotConfig, migrateFromGlobal = false) {
   if (!appState.slotData || typeof appState.slotData !== "object" || Array.isArray(appState.slotData)) {
     appState.slotData = {};
   }
-  const defaults = getPluginDefaultState(plugin);
+  const seedState = useEmptyState
+    ? getPluginEmptyState(plugin)
+    : getPluginDefaultState(plugin);
 
   if (!appState.slotData[slotConfig.id] || typeof appState.slotData[slotConfig.id] !== "object") {
     appState.slotData[slotConfig.id] = {};
-    for (const [key, defaultVal] of Object.entries(defaults)) {
+    for (const [key, seedVal] of Object.entries(seedState)) {
       if (migrateFromGlobal && appState[key] !== undefined) {
         appState.slotData[slotConfig.id][key] = JSON.parse(JSON.stringify(appState[key]));
       } else {
-        appState.slotData[slotConfig.id][key] = defaultVal;
+        appState.slotData[slotConfig.id][key] = seedVal;
       }
     }
   } else {
-    for (const [key, defaultVal] of Object.entries(defaults)) {
+    for (const [key, seedVal] of Object.entries(seedState)) {
       if (appState.slotData[slotConfig.id][key] === undefined) {
-        appState.slotData[slotConfig.id][key] = defaultVal;
+        appState.slotData[slotConfig.id][key] = seedVal;
       }
     }
   }
@@ -3188,8 +3213,8 @@ function renderFlyoutContent() {
             size: isHalfFill ? "half" : size,
           };
 
-          // Seed this new widget instance with a fresh copy of the extension's defaultState
-          ensureSlotDataInitialized(newSlot, false);
+          // Start newly added widget instances with clean empty state (no demo data)
+          ensureSlotDataInitialized(newSlot, false, true);
 
           if (isHalfFill && uiState.targetColumnId) {
             const targetCol = appState.columns.find((c) => c.id === uiState.targetColumnId);

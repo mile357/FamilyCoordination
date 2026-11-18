@@ -131,17 +131,18 @@ function addMealAndBroadcastIngredients(ctx, mealName, ingredientsList, sourceRe
     appState.mealCatalog.unshift(catalogEntry);
   }
 
+  const hasGroceryReceiver = ctx.canHandle("groceries:add-items");
+  const dispatchInfo = hasGroceryReceiver
+    ? dispatchIngredients(ctx, mealName, finalIngredients)
+    : { added: 0, slotIds: [] };
+
   appState.activeMeals.unshift({
     id: "active-meal-" + Date.now(),
     catalogId: catalogEntry.id,
     name: mealName,
     ingredients: finalIngredients,
+    ready: !(hasGroceryReceiver && dispatchInfo.added > 0),
   });
-
-  const hasGroceryReceiver = ctx.canHandle("groceries:add-items");
-  const dispatchInfo = hasGroceryReceiver
-    ? dispatchIngredients(ctx, mealName, finalIngredients)
-    : { added: 0, slotIds: [] };
 
   saveState(
     hasGroceryReceiver && finalIngredients.length > 0
@@ -220,6 +221,7 @@ export default {
         catalogId: "meal-cat-1",
         name: "Street Tacos & Guacamole",
         note: "With homemade salsa verde",
+        ready: false,
         ingredients: [
           "Corn tortillas",
           "Avocados (3)",
@@ -234,6 +236,7 @@ export default {
         catalogId: "meal-cat-2",
         name: "Sheet Pan Salmon & Asparagus",
         note: "Quick weeknight dinner",
+        ready: false,
         ingredients: [
           "Wild salmon fillets",
           "Fresh asparagus bunch",
@@ -243,6 +246,27 @@ export default {
         ],
       },
     ],
+  },
+
+  events: {
+    "meals:ingredients-status"(payload, ctx) {
+      const { appState } = ctx;
+      const target = String((payload && payload.source) || "").trim().toLowerCase();
+      if (!target || !Array.isArray(appState.activeMeals)) return { updated: 0 };
+
+      const remaining = Number(payload && payload.remainingUnchecked) || 0;
+      let updated = 0;
+      for (const meal of appState.activeMeals) {
+        if (meal && meal.name && String(meal.name).trim().toLowerCase() === target) {
+          const nextReady = remaining === 0;
+          if (meal.ready !== nextReady) {
+            meal.ready = nextReady;
+            updated++;
+          }
+        }
+      }
+      return { updated };
+    },
   },
 
   renderAddForm(ctx) {
@@ -476,22 +500,62 @@ export default {
       return list;
     }
 
+    const canQueryGroceries =
+      typeof ctx.canHandle === "function" && ctx.canHandle("groceries:count-unchecked");
+
     activeMeals.forEach((meal) => {
+      let isReady = meal.ready !== false;
+      if (canQueryGroceries) {
+        const responses = ctx.emit("groceries:count-unchecked", { source: meal.name });
+        const remainingUnchecked = responses.reduce(
+          (sum, r) => sum + Number((r && r.result && r.result.remainingUnchecked) || 0),
+          0
+        );
+        isReady = remainingUnchecked === 0;
+      }
+
       const row = document.createElement("div");
       row.className = "metro-list-item";
       row.innerHTML = `
         <div class="item-text-wrap" style="min-width:0; flex:1;">
           <span class="item-primary">${escapeHtml(meal.name)}</span>
         </div>
-        <button class="metro-btn accent" style="--accent:var(--slot-accent, #A20025); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ate-meal">
-          ate!
-        </button>
+        ${
+          isReady
+            ? `<button class="metro-btn accent" style="--accent:var(--slot-accent, #A20025); --accent-fg:var(--slot-accent-fg, #FFFFFF); padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ate-meal" title="Mark meal as eaten and remove from plan">ate!</button>`
+            : `<button class="metro-btn" style="padding:4px 12px; font-size:13px; flex-shrink:0;" data-action="ready-meal" title="Already have the ingredients — remove unchecked items from grocery list">ready</button>`
+        }
       `;
 
-      row.querySelector('[data-action="ate-meal"]').addEventListener("click", () => {
-        appState.activeMeals = (appState.activeMeals || []).filter((m) => m.id !== meal.id);
-        saveState(`Ate "${meal.name}"`);
-      });
+      const readyBtn = row.querySelector('[data-action="ready-meal"]');
+      if (readyBtn) {
+        readyBtn.addEventListener("click", () => {
+          meal.ready = true;
+          let removed = 0;
+          if (ctx.canHandle("groceries:remove-unchecked-by-source")) {
+            const responses = ctx.emit("groceries:remove-unchecked-by-source", {
+              source: meal.name,
+            });
+            removed = responses.reduce(
+              (sum, r) => sum + Number((r && r.result && r.result.removed) || 0),
+              0
+            );
+          }
+          saveState(
+            removed > 0
+              ? `"${meal.name}" ready — removed ${removed} unchecked grocery item${removed === 1 ? "" : "s"}`
+              : `"${meal.name}" marked ready`
+          );
+        });
+      }
+
+      const ateBtn = row.querySelector('[data-action="ate-meal"]');
+      if (ateBtn) {
+        ateBtn.addEventListener("click", () => {
+          appState.activeMeals = (appState.activeMeals || []).filter((m) => m.id !== meal.id);
+          saveState(`Ate "${meal.name}"`);
+        });
+      }
 
       list.appendChild(row);
     });

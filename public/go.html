@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>grocery list — family hub</title>
   <meta name="theme-color" content="#000000" />
-  <link rel="stylesheet" href="/styles.css?v=46" />
+  <link rel="stylesheet" href="/styles.css?v=47" />
   <script>
     (function () {
       try {
@@ -26,7 +26,7 @@
           var link = document.createElement("link");
           link.id = "activeThemeStylesheet";
           link.rel = "stylesheet";
-          link.href = cached.stylesheetUrl + "?v=46";
+          link.href = cached.stylesheetUrl + "?v=47";
           document.head.appendChild(link);
         }
       } catch (e) {}
@@ -141,7 +141,7 @@
     const DELETED_IDS_KEY = "metro_pocket_deleted_ids_v1";
     const THEME_KEY = "hub_active_theme_cache_v1";
     const LEGACY_THEME_KEY = "metro_pocket_theme_v1";
-    const THEME_ASSET_VERSION = "46";
+    const THEME_ASSET_VERSION = "47";
     const IS_CALENDAR_MODE =
       new URLSearchParams(window.location.search).get("mode") === "calendar" ||
       window.location.hash === "#calendar";
