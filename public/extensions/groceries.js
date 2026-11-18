@@ -3,7 +3,7 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
-import { renderQrSvg } from "../qr.js?v=44";
+import { renderQrSvg } from "../qr.js?v=45";
 
 export default {
   id: "groceries",

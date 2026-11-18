@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "44";
+const ASSET_VERSION = "45";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -2955,12 +2955,35 @@ function renderFlyoutContent() {
         </div>
 
         <div class="flyout-section">
+          <div class="flyout-section-title">ipad / ipados setup</div>
+
+          <div class="extension-card" style="--ext-color: var(--info-color); align-items:flex-start; flex-direction:column; gap:6px;">
+            <div class="card-title" style="font-size:19px;">
+              1. fullscreen home screen app (plain http or https)
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+              Open your Hub URL in <strong>Safari</strong> on the iPad, tap the <strong>Share</strong> icon → <strong>Add to Home Screen</strong>, and launch <strong>family hub</strong> from the Home Screen to hide Safari's address bar and tabs.
+            </div>
+          </div>
+
+          <div class="extension-card" style="--ext-color: var(--success-color); align-items:flex-start; flex-direction:column; gap:6px;">
+            <div class="card-title" style="font-size:19px;">
+              2. keep screen awake on ipad (2 options)
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+              • <strong>Option A (Native iPadOS Settings — Works on HTTP)</strong>: Set <strong>iPad Settings → Display &amp; Brightness → Auto-Lock → Never</strong> (and optionally enable <strong>Settings → Accessibility → Guided Access</strong> to lock the iPad into Family Hub).<br/>
+              • <strong>Option B (Local HTTPS — Enables Browser Wake Lock &amp; Service Worker)</strong>: Serve the Hub over <code>https://</code> via <strong>Tailscale HTTPS</strong> (<code>sudo tailscale serve --bg 8080</code>) or a <strong>Cloudflare Tunnel / Reverse-Proxy TLS</strong> certificate.
+            </div>
+          </div>
+        </div>
+
+        <div class="flyout-section">
           <div class="flyout-section-title">quick guide</div>
           <div class="extension-card" style="--ext-color: var(--accent); align-items:flex-start; flex-direction:column; gap:6px;">
             <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
               • <strong>widget commands (•••)</strong>: tap any widget header or <strong>•••</strong> to add items, filter, or rename.<br/>
               • <strong>customize layout</strong>: open <strong>settings → extensions → customize layout</strong> to move, resize (<strong>½</strong> / <strong>⤢</strong>), or restore trashed widgets.<br/>
-              • <strong>phone companion (qr)</strong>: tap <strong>qr</strong> inside Groceries or Chores to scan and check off items from your phone.
+              • <strong>phone companion (qr)</strong>: open <strong>•••</strong> inside Groceries or Shared Calendar to scan the QR code and shop or paste <code>.ics</code> links from your phone.
             </div>
           </div>
         </div>

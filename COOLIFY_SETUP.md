@@ -63,8 +63,14 @@ If you run Pi-hole, AdGuard Home, or a router that supports custom local DNS (pf
 2. Any subdomain (e.g. `hub.home.arpa`) will route directly to your mini PC.
 
 > [!TIP]
-> **For the Pixel Tablet PWA**:
+> **For the Pixel Tablet / Android PWA**:
 > On your Pixel Tablet, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, paste your chosen Hub URL (e.g. `http://hub.192.168.1.150.sslip.io`), set it to **Enabled**, and relaunch Chrome. You can also copy both URLs with one tap from **Settings (`•••`) &rarr; `install`** inside the Hub.
+
+> [!NOTE]
+> **Using an iPad as Your Wall Display (iPadOS Safari)**:
+> iPadOS Safari does not have `chrome://flags` to enable the web **Screen Wake Lock API** over plain `http://`. You have two clean ways to run on an iPad:
+> 1. **Zero-Config HTTP + iPad Auto-Lock**: Open your `http://` Hub URL in Safari &rarr; tap **Share** &rarr; **Add to Home Screen** and launch **family hub** from the Home Screen (our `apple-mobile-web-app-capable` meta tag hides Safari's address bar and tabs even over plain HTTP). Then set **iPad Settings &rarr; Display & Brightness &rarr; Auto-Lock &rarr; Never** (and optionally enable **Guided Access** under **Settings &rarr; Accessibility** to lock the iPad to the app).
+> 2. **Local HTTPS (Enables Browser Wake Lock & Service Worker)**: Use **Tailscale HTTPS** (`sudo tailscale serve --bg 8080` for a free `https://<server>.<tailnet>.ts.net` cert) or **Cloudflare Tunnel** (Section 4, Method B below) so Safari runs in a full `https://` secure context.
 
 ---
 
