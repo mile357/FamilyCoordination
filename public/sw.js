@@ -4,7 +4,7 @@
  * live LAN state and asset edits are never trapped behind a stale cache.
  */
 
-const CACHE_NAME = "metro-family-hub-v49";
+const CACHE_NAME = "metro-family-hub-v50";
 const CORE_ASSETS = [
   "/",
   "/index.html",

@@ -3,7 +3,7 @@
  * Left Pane: Today's Hour-by-Hour Timeline
  * Right Pane: Next 7 Days Agenda
  */
-import { renderQrSvg } from "../qr.js?v=49";
+import { renderQrSvg } from "../qr.js?v=50";
 
 function buildInitialCalendarState() {
   const today = new Date();
@@ -486,7 +486,7 @@ export default {
     const timeline = document.createElement("div");
     timeline.className = "hour-timeline";
 
-    const now = new Date();
+    const now = typeof ctx.getHubNow === "function" ? ctx.getHubNow() : new Date();
     const currentHour = now.getHours();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const dayStartMs = dayStart.getTime();
@@ -682,7 +682,7 @@ export default {
     const rightPane = document.createElement("div");
     rightPane.className = "double-pane";
     rightPane.dataset.scrollPane = `cal-agenda-${slot.id}`;
-    const today = new Date();
+    const today = typeof ctx.getHubNow === "function" ? ctx.getHubNow() : new Date();
     today.setHours(0, 0, 0, 0);
 
     for (let offset = 0; offset < 7; offset++) {

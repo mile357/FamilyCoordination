@@ -9,7 +9,7 @@
  * 4. Scroll- & Focus-Preserving Panorama Renderer + Multi-Device Optimistic Concurrency (`_updatedAt`).
  */
 
-const ASSET_VERSION = "49";
+const ASSET_VERSION = "50";
 const ELLIPSIS_ICON_SVG = `<svg class="ellipsis-dots-svg" viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="1.75" fill="currentColor"/><circle cx="9" cy="2" r="1.75" fill="currentColor"/><circle cx="16" cy="2" r="1.75" fill="currentColor"/></svg>`;
 
 const DEFAULT_SETTINGS = {
@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   themeId: "metro",
   themeAccents: {},
   zipCode: "98052",
+  timeZone: "",
   keepScreenAwake: true,
 };
 
@@ -667,6 +668,8 @@ function createExtensionContext(slotConfig, colConfig) {
     getContrastColor,
     getReadableAccentColor: (hexColor) => ensureReadableOnSurface(hexColor, getEffectiveSurfaceHex()),
     formatTimeShort,
+    getHubTimeZone,
+    getHubNow,
     emit: emitExtensionEvent,
     canHandle: canHandleExtensionEvent,
     replaceAppState(newState) {
@@ -1088,14 +1091,15 @@ async function fetchWeatherFromBrowser(zip) {
     precipChance: Math.round(Number(rawPrecip) || 0),
     icon: iconEntry ? iconEntry[1] : "☂\uFE0E",
     location,
+    timeZone: typeof wxData.timezone === "string" ? wxData.timezone.trim() : "",
   };
 }
 
 async function refreshWeather() {
-  if (!appState) return;
+  if (!appState) return null;
   const zip = ((appState.settings && appState.settings.zipCode) || "98052").trim();
   const el = document.getElementById("hubWeather");
-  if (!el) return;
+  if (!el) return null;
 
   try {
     let wx = null;
@@ -1109,8 +1113,17 @@ async function refreshWeather() {
     }
     if (wx) {
       renderWeatherLine(el, wx, zip);
+      const resolvedTz = typeof wx.timeZone === "string" ? wx.timeZone.trim() : "";
+      if (resolvedTz && isValidIanaTimeZone(resolvedTz) && appState.settings) {
+        if (appState.settings.timeZone !== resolvedTz) {
+          appState.settings.timeZone = resolvedTz;
+          updateClock();
+        }
+      }
+      return wx;
     }
   } catch (e) {}
+  return null;
 }
 
 function renderWeatherLine(el, wx, zip) {
@@ -2621,11 +2634,16 @@ function renderFlyoutContent() {
         </div>
 
         <div class="flyout-section">
-          <div class="flyout-section-title">local weather zip code</div>
+          <div class="flyout-section-title">location zip code (weather &amp; timezone)</div>
           <div class="quick-form" style="margin-bottom:0;">
             <input class="metro-input" id="zipCodeInput" value="${escapeHtml(appState.settings.zipCode || "98052")}" placeholder="zip code (e.g. 98052)..." />
-            <button class="metro-btn accent" id="btnSaveZip">update weather</button>
+            <button class="metro-btn accent" id="btnSaveZip">update location</button>
           </div>
+          ${
+            appState.settings.timeZone
+              ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:6px;">timezone: ${escapeHtml(appState.settings.timeZone)}</div>`
+              : ""
+          }
         </div>
 
         <div class="flyout-section">
@@ -2721,10 +2739,35 @@ function renderFlyoutContent() {
       const zipInput = tabBody.querySelector("#zipCodeInput");
       const saveZip = async () => {
         const val = zipInput.value.trim();
-        if (val) {
-          appState.settings.zipCode = val;
-          await saveState(`Weather ZIP updated to ${val}`);
-          refreshWeather();
+        if (!val) return;
+        const prevTz = appState.settings.timeZone || "";
+        appState.settings.zipCode = val;
+        const wx = await refreshWeather();
+        const nextTz =
+          wx && typeof wx.timeZone === "string" && isValidIanaTimeZone(wx.timeZone.trim())
+            ? wx.timeZone.trim()
+            : "";
+        if (nextTz) {
+          appState.settings.timeZone = nextTz;
+        }
+        const tzSuffix = appState.settings.timeZone ? ` (${appState.settings.timeZone})` : "";
+        await saveState(`Location updated to ${val}${tzSuffix}`);
+        updateClock();
+        renderFlyoutContent();
+
+        const hasExternalIcs =
+          Array.isArray(appState.calendars) &&
+          appState.calendars.some((c) => c && c.icsUrl && String(c.icsUrl).trim());
+        if (hasExternalIcs && appState.settings.timeZone && appState.settings.timeZone !== prevTz) {
+          try {
+            const syncRes = await fetch("/api/sync-calendars", { method: "POST" });
+            if (syncRes.ok) {
+              const syncData = await syncRes.json();
+              if (syncData && syncData.ok && syncData.state) {
+                replaceAppState(syncData.state);
+              }
+            }
+          } catch (e) {}
         }
       };
       tabBody.querySelector("#btnSaveZip").addEventListener("click", saveZip);
@@ -3377,28 +3420,67 @@ function registerPwaServiceWorker() {
 // ============================================================================
 // CLOCK, THEME & GLOBAL LISTENERS
 // ============================================================================
+function isValidIanaTimeZone(tz) {
+  if (typeof tz !== "string" || !tz.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz.trim() });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function getHubTimeZone() {
+  const tz = appState && appState.settings && appState.settings.timeZone;
+  return isValidIanaTimeZone(tz) ? tz.trim() : null;
+}
+
+function getHubNow() {
+  const tz = getHubTimeZone();
+  const realNow = new Date();
+  if (!tz) return realNow;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(realNow);
+    const map = {};
+    for (const p of parts) {
+      if (p.type !== "literal") map[p.type] = Number(p.value);
+    }
+    const hour = map.hour === 24 ? 0 : map.hour;
+    return new Date(map.year, map.month - 1, map.day, hour, map.minute, map.second);
+  } catch (e) {
+    return realNow;
+  }
+}
+
 let lastRenderedHourKey = `${new Date().toDateString()}-${new Date().getHours()}`;
 
 function updateClock() {
   const now = new Date();
+  const tz = getHubTimeZone();
   const timeEl = document.getElementById("clockTime");
   const dateEl = document.getElementById("clockDate");
   if (timeEl) {
-    timeEl.textContent = now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    const opts = { hour: "numeric", minute: "2-digit", hour12: true };
+    if (tz) opts.timeZone = tz;
+    timeEl.textContent = now.toLocaleTimeString("en-US", opts);
   }
   if (dateEl) {
-    dateEl.textContent = now.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
+    const opts = { weekday: "long", month: "short", day: "numeric" };
+    if (tz) opts.timeZone = tz;
+    dateEl.textContent = now.toLocaleDateString("en-US", opts);
   }
 
-  const currentHourKey = `${now.toDateString()}-${now.getHours()}`;
+  const hubNow = getHubNow();
+  const currentHourKey = `${hubNow.toDateString()}-${hubNow.getHours()}`;
   if (currentHourKey !== lastRenderedHourKey) {
     if (appState && !isUserInteracting()) {
       lastRenderedHourKey = currentHourKey;

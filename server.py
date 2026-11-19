@@ -61,6 +61,7 @@ def get_initial_state():
             "themeId": "metro",
             "themeAccents": {},
             "zipCode": "98052",        # Default sample ZIP (Redmond, WA)
+            "timeZone": "",            # Auto-resolved IANA timezone from zipCode (e.g. "America/Los_Angeles")
             "keepScreenAwake": True,
         },
         "extensions": {},
@@ -295,6 +296,15 @@ def _validate_and_normalize_state(payload):
                         if clean_tid and _is_valid_hex_color(hex_val):
                             clean_accents[clean_tid] = hex_val.strip()
                     merged_settings["themeAccents"] = clean_accents
+            elif k == "timeZone":
+                if isinstance(v, str):
+                    tz_clean = v.strip()
+                    if not tz_clean:
+                        merged_settings["timeZone"] = ""
+                    else:
+                        with contextlib.suppress(Exception):
+                            ZoneInfo(tz_clean)
+                            merged_settings["timeZone"] = tz_clean
             elif k in defaults:
                 if isinstance(defaults[k], bool):
                     if isinstance(v, bool):
@@ -835,7 +845,36 @@ def _parse_ics_duration(raw_dur):
     )
 
 
-def _parse_ics_datetime(raw_line, custom_tz_map=None):
+def _hub_now(target_tz=None):
+    """Return naive wall-clock 'now' in target_tz (or OS local timezone if target_tz is None)."""
+    if target_tz is not None:
+        return datetime.now(target_tz).replace(tzinfo=None)
+    return datetime.now()
+
+
+def _resolve_hub_tzinfo(settings):
+    """
+    Resolve (ZoneInfo, tz_name) from settings['timeZone'], falling back to
+    resolving via settings['zipCode'] (cached Open-Meteo lookup).
+    Returns (None, '') if unavailable so callers fall back to OS local timezone.
+    """
+    if not isinstance(settings, dict):
+        return None, ""
+    raw_tz = (settings.get("timeZone") or "").strip()
+    if raw_tz:
+        with contextlib.suppress(Exception):
+            return ZoneInfo(raw_tz), raw_tz
+    zip_code = (settings.get("zipCode") or "").strip()
+    if zip_code:
+        wx = fetch_weather_for_zip(zip_code)
+        wx_tz = (wx.get("timeZone") or "").strip() if isinstance(wx, dict) else ""
+        if wx_tz:
+            with contextlib.suppress(Exception):
+                return ZoneInfo(wx_tz), wx_tz
+    return None, ""
+
+
+def _parse_ics_datetime(raw_line, custom_tz_map=None, target_tz=None):
     """Parse iCalendar DTSTART/DTEND line into (iso_str, is_all_day). Returns (None, False) if malformed."""
     _, params, val = _split_ics_line(raw_line)
     if not val:
@@ -855,11 +894,11 @@ def _parse_ics_datetime(raw_line, custom_tz_map=None):
             time_part = time_part[:6].ljust(6, "0")
             dt = datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
             if is_utc == "Z":
-                dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+                dt = dt.replace(tzinfo=timezone.utc).astimezone(target_tz).replace(tzinfo=None)
             elif "TZID" in params:
                 tz = _resolve_tzinfo(params["TZID"], custom_tz_map=custom_tz_map)
                 if tz is not None:
-                    dt = dt.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
+                    dt = dt.replace(tzinfo=tz).astimezone(target_tz).replace(tzinfo=None)
             return dt.isoformat(), False
     except (ValueError, TypeError, OverflowError):
         return None, False
@@ -917,7 +956,9 @@ def _monthly_candidates_for_month(year, month, st_dt, byday_specs, bymonthdays, 
     return candidates
 
 
-def _expand_rrule_occurrences(st_dt, duration, rrule_str, exdates, window_start, window_end, custom_tz_map=None):
+def _expand_rrule_occurrences(
+    st_dt, duration, rrule_str, exdates, window_start, window_end, custom_tz_map=None, target_tz=None
+):
     """Expand RFC 5545 RRULE (DAILY, WEEKLY, MONTHLY, YEARLY) within [window_start, window_end]."""
     rules = {}
     for part in rrule_str.split(";"):
@@ -941,7 +982,9 @@ def _expand_rrule_occurrences(st_dt, duration, rrule_str, exdates, window_start,
 
     until_dt = None
     if "UNTIL" in rules:
-        u_iso, _ = _parse_ics_datetime("DTEND:" + rules["UNTIL"], custom_tz_map=custom_tz_map)
+        u_iso, _ = _parse_ics_datetime(
+            "DTEND:" + rules["UNTIL"], custom_tz_map=custom_tz_map, target_tz=target_tz
+        )
         if u_iso:
             with contextlib.suppress(Exception):
                 until_dt = datetime.fromisoformat(u_iso)
@@ -1108,7 +1151,7 @@ def _extract_vtimezone_map(lines):
     return tz_map
 
 
-def fetch_and_parse_ics(ics_url, calendar_id):
+def fetch_and_parse_ics(ics_url, calendar_id, target_tz=None):
     """Fetch a read-only .ics feed (Google / Microsoft / iCloud) and return upcoming events."""
     req_url = ics_url.strip()
     if req_url.startswith("webcal://"):
@@ -1134,8 +1177,9 @@ def fetch_and_parse_ics(ics_url, calendar_id):
     events = []
     in_event = False
     cur = {}
-    window_start = datetime.now() - timedelta(days=2)
-    window_end = datetime.now() + timedelta(days=14)
+    hub_now = _hub_now(target_tz)
+    window_start = hub_now - timedelta(days=2)
+    window_end = hub_now + timedelta(days=14)
 
     for line in lines:
         stripped = line.strip()
@@ -1171,6 +1215,7 @@ def fetch_and_parse_ics(ics_url, calendar_id):
                             window_start,
                             window_end,
                             custom_tz_map=custom_tz_map,
+                            target_tz=target_tz,
                         )
                     else:
                         occs = (
@@ -1214,21 +1259,23 @@ def fetch_and_parse_ics(ics_url, calendar_id):
                         continue
                     tz_prefix = f";TZID={params['TZID']}" if "TZID" in params else ""
                     ex_iso, _ = _parse_ics_datetime(
-                        f"EXDATE{tz_prefix}:{token}", custom_tz_map=custom_tz_map
+                        f"EXDATE{tz_prefix}:{token}",
+                        custom_tz_map=custom_tz_map,
+                        target_tz=target_tz,
                     )
                     if ex_iso:
                         with contextlib.suppress(Exception):
                             cur["exdates"].append(datetime.fromisoformat(ex_iso))
             elif prop_name == "DTSTART":
                 parsed_iso, is_all_day = _parse_ics_datetime(
-                    line, custom_tz_map=custom_tz_map
+                    line, custom_tz_map=custom_tz_map, target_tz=target_tz
                 )
                 if parsed_iso:
                     cur["start"] = parsed_iso
                     cur["allDay"] = is_all_day
             elif prop_name == "DTEND":
                 parsed_iso, _ = _parse_ics_datetime(
-                    line, custom_tz_map=custom_tz_map
+                    line, custom_tz_map=custom_tz_map, target_tz=target_tz
                 )
                 if parsed_iso:
                     cur["end"] = parsed_iso
@@ -1362,6 +1409,13 @@ def fetch_weather_for_zip(zip_code):
         else:
             icon = "☂\uFE0E"
 
+        raw_tz = (wx_data.get("timezone") or "").strip()
+        resolved_tz = ""
+        if raw_tz:
+            with contextlib.suppress(Exception):
+                ZoneInfo(raw_tz)
+                resolved_tz = raw_tz
+
         result = {
             "tempF": temp_f,
             "minF": min(min_f, temp_f),
@@ -1371,6 +1425,7 @@ def fetch_weather_for_zip(zip_code):
             "icon": icon,
             "weatherCode": wmo,
             "location": loc["name"],
+            "timeZone": resolved_tz,
         }
         with WEATHER_LOCK:
             if cache_key not in WEATHER_CACHE and len(WEATHER_CACHE) >= WEATHER_CACHE_MAX_SIZE:
@@ -1523,13 +1578,14 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                     feeds_to_sync.append((cal_id, cal.get("name") or cal_id, ics_url))
 
             # Fetch feeds outside STATE_LOCK so slow feeds never block other requests or overwrite concurrent edits
+            target_tz, resolved_tz_name = _resolve_hub_tzinfo(snapshot_state.get("settings"))
             synced_results = {}
             feed_errors = []
-            sync_time_str = datetime.now().strftime("%I:%M %p").lstrip("0").lower()
+            sync_time_str = _hub_now(target_tz).strftime("%I:%M %p").lstrip("0").lower()
 
             for cal_id, cal_name, ics_url in feeds_to_sync:
                 try:
-                    feed_events = fetch_and_parse_ics(ics_url, cal_id)
+                    feed_events = fetch_and_parse_ics(ics_url, cal_id, target_tz=target_tz)
                     synced_results[cal_id] = (feed_events, sync_time_str)
                 except ValueError as ve:
                     feed_errors.append(f"{cal_name}: {ve}")
@@ -1567,7 +1623,7 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
-            window_start = datetime.now() - timedelta(days=2)
+            window_start = _hub_now(target_tz) - timedelta(days=2)
             now_iso = _now_token()
 
             with STATE_LOCK:
@@ -1606,6 +1662,8 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                             kept_events.extend(new_evs)
 
                     latest["events"] = kept_events
+                    if resolved_tz_name and isinstance(latest.get("settings"), dict) and not latest["settings"].get("timeZone"):
+                        latest["settings"]["timeZone"] = resolved_tz_name
                     for cal in latest.get("calendars") or []:
                         if isinstance(cal, dict) and cal.get("id") in synced_results:
                             cal["lastSync"] = synced_results[cal["id"]][1]

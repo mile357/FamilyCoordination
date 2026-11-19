@@ -534,6 +534,35 @@ class TestServerCalendarAndResilience(BaseServerTestCase):
         self.assertIsNotNone(iso_tz)
         self.assertFalse(all_day_tz)
 
+    def test_ics_datetime_explicit_target_timezone(self):
+        """_parse_ics_datetime converts UTC and TZID timestamps into target_tz regardless of OS TZ."""
+        from zoneinfo import ZoneInfo
+
+        denver = ZoneInfo("America/Denver")  # MST (UTC-7) in November
+        ny = ZoneInfo("America/New_York")    # EST (UTC-5) in November
+
+        iso_denver, _ = server._parse_ics_datetime("DTSTART:20261114T180000Z", target_tz=denver)
+        iso_ny, _ = server._parse_ics_datetime("DTSTART:20261114T180000Z", target_tz=ny)
+        self.assertEqual(iso_denver, "2026-11-14T11:00:00")
+        self.assertEqual(iso_ny, "2026-11-14T13:00:00")
+
+        # TZID in New York converted into Denver wall-clock time (2 hours earlier)
+        iso_converted, _ = server._parse_ics_datetime(
+            "DTSTART;TZID=America/New_York:20261114T100000", target_tz=denver
+        )
+        self.assertEqual(iso_converted, "2026-11-14T08:00:00")
+
+    def test_settings_timezone_validation(self):
+        """settings.timeZone accepts valid IANA names or empty string and ignores invalid values."""
+        state = server.get_initial_state()
+        state["settings"]["timeZone"] = "America/Denver"
+        norm = server._validate_and_normalize_state(state)
+        self.assertEqual(norm["settings"]["timeZone"], "America/Denver")
+
+        state["settings"]["timeZone"] = "Not/A_Real_Zone"
+        norm_invalid = server._validate_and_normalize_state(state)
+        self.assertEqual(norm_invalid["settings"]["timeZone"], "")
+
     def test_ics_datetime_malformed_date_resilience(self):
         """
         Malformed date strings (e.g. Feb 30th) should return (None, False)
