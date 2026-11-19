@@ -216,59 +216,83 @@ export default {
       return { nextDelayMs: 4000 };
     }
 
-    const targets = [];
-    slotEl.querySelectorAll(".tc-groups > .tc-group").forEach((groupEl) => {
-      const steps = groupEl.querySelectorAll(".tc-task-list .metro-list-item");
-      if (steps.length > 0) {
-        steps.forEach((s) => targets.push(s));
-      } else {
-        targets.push(groupEl);
-      }
-    });
-
-    if (targets.length === 0) {
+    const items = Array.isArray(ctx.appState.taskChecklists) ? ctx.appState.taskChecklists : [];
+    if (items.length === 0) {
       return { nextDelayMs: 10000 };
     }
 
-    if (targets.length === 1) {
-      stepData.highlighted = !stepData.highlighted;
-      if (stepData.highlighted) {
-        targets[0].classList.add("attract-highlight");
-        return { nextDelayMs: 2800 + Math.floor(Math.random() * 1800) };
+    const focusExpandedGroup = (itemId) => {
+      const freshSlotEl = document.querySelector(
+        `.metro-slot[data-slot-id="${CSS.escape(ctx.slot.id)}"]`
+      );
+      if (!freshSlotEl) return;
+      const activeGroup = freshSlotEl.querySelector(
+        `.tc-group[data-item-id="${CSS.escape(itemId)}"]`
+      );
+      if (!activeGroup) return;
+      activeGroup.classList.add("attract-highlight");
+
+      const scrollContainer = freshSlotEl.querySelector(".chore-scroll-list");
+      if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 4) {
+        const cRect = scrollContainer.getBoundingClientRect();
+        const tRect = activeGroup.getBoundingClientRect();
+        if (tRect.top < cRect.top + 6 || tRect.bottom > cRect.bottom - 6) {
+          const delta =
+            tRect.height >= cRect.height - 12
+              ? tRect.top - cRect.top - 6
+              : tRect.top - cRect.top - (cRect.height - tRect.height) / 2;
+          scrollContainer.scrollTo({
+            top: Math.max(0, scrollContainer.scrollTop + delta),
+            behavior: "smooth",
+          });
+        }
       }
-      return { nextDelayMs: 2400 + Math.floor(Math.random() * 1600) };
+    };
+
+    const dwellMsFor = (item) => {
+      const stepCount = Array.isArray(item.tasks) ? item.tasks.length : 0;
+      return Math.min(12000, 5500 + stepCount * 600) + Math.floor(Math.random() * 2500);
+    };
+
+    if (items.length === 1) {
+      const onlyItem = items[0];
+      if (ui.expandedItemId === onlyItem.id) {
+        ui.expandedItemId = null;
+        ctx.renderSlotOnly();
+        return { nextDelayMs: 4500 + Math.floor(Math.random() * 2500) };
+      }
+      ui.expandedItemId = onlyItem.id;
+      ctx.renderSlotOnly();
+      focusExpandedGroup(onlyItem.id);
+      return { nextDelayMs: dwellMsFor(onlyItem) };
     }
 
+    let prevIdx;
     if (stepData.resting) {
       stepData.resting = false;
-      stepData.index = -1;
+      prevIdx = -1;
+    } else if (typeof stepData.index === "number") {
+      prevIdx = stepData.index;
+    } else {
+      prevIdx = ui.expandedItemId ? items.findIndex((it) => it.id === ui.expandedItemId) : -1;
     }
 
-    const prevIdx = typeof stepData.index === "number" ? stepData.index : -1;
     const nextIdx = prevIdx + 1;
-    if (nextIdx >= targets.length) {
+    if (nextIdx >= items.length) {
+      ui.expandedItemId = null;
+      stepData.index = -1;
       stepData.resting = true;
-      return { nextDelayMs: 4500 + Math.floor(Math.random() * 3500) };
+      ctx.renderSlotOnly();
+      return { nextDelayMs: 4500 + Math.floor(Math.random() * 3000) };
     }
 
     stepData.index = nextIdx;
-    const activeTarget = targets[nextIdx];
-    activeTarget.classList.add("attract-highlight");
+    const activeItem = items[nextIdx];
+    ui.expandedItemId = activeItem.id;
+    ctx.renderSlotOnly();
+    focusExpandedGroup(activeItem.id);
 
-    const scrollContainer = slotEl.querySelector(".chore-scroll-list");
-    if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 4) {
-      const cRect = scrollContainer.getBoundingClientRect();
-      const tRect = activeTarget.getBoundingClientRect();
-      if (tRect.top < cRect.top + 6 || tRect.bottom > cRect.bottom - 6) {
-        const delta = tRect.top - cRect.top - (cRect.height - tRect.height) / 2;
-        scrollContainer.scrollTo({
-          top: Math.max(0, scrollContainer.scrollTop + delta),
-          behavior: "smooth",
-        });
-      }
-    }
-
-    return { nextDelayMs: 2600 + Math.floor(Math.random() * 2000) };
+    return { nextDelayMs: dwellMsFor(activeItem) };
   },
   onAttractStop(ctx, stepData) {
     const slotEl = document.querySelector(`.metro-slot[data-slot-id="${CSS.escape(ctx.slot.id)}"]`);
@@ -278,7 +302,7 @@ export default {
       });
     }
     if (stepData) {
-      stepData.index = -1;
+      delete stepData.index;
       stepData.resting = false;
       stepData.highlighted = false;
     }
@@ -421,6 +445,7 @@ export default {
 
       const group = document.createElement("div");
       group.className = `tc-group ${isAllDone && !isEditingItem ? "is-complete" : ""}`;
+      group.dataset.itemId = item.id;
 
       if (isEditingItem) {
         if (!ui.editDraft) {
