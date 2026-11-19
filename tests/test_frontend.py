@@ -595,6 +595,28 @@ class TestTouchErgonomicsAndCss(unittest.TestCase):
         self.assertIn('"meals:ingredients-status"', groc_js)
         self.assertNotIn("appState.activeMeals", groc_js)
 
+    def test_chores_and_checklist_drawer_gated_edit_controls(self):
+        """
+        To-Do List (chores.js) must show only today's due tasks on the checklist pivot
+        when closed, hide pivots and show all open/repeating tasks with edit buttons when
+        the ••• drawer is open. Checklist (task-checklist.js) must gate edit behind •••
+        while keeping the reset button always visible.
+        """
+        with open(os.path.join(PUBLIC_DIR, "extensions", "chores.js"), "r", encoding="utf-8") as f:
+            chores_js = f.read()
+        with open(os.path.join(PUBLIC_DIR, "extensions", "task-checklist.js"), "r", encoding="utf-8") as f:
+            tc_js = f.read()
+
+        self.assertIn("const dueTodayRepeating = repeatingChores.filter", chores_js)
+        self.assertIn("drawerOpen", chores_js)
+        self.assertIn('data-action="edit"', chores_js)
+        self.assertIn("oneOffChores.filter((c) => !c.done)", chores_js)
+
+        self.assertIn("drawerOpen", tc_js)
+        self.assertIn('data-action="reset-item"', tc_js)
+        self.assertIn('data-action="edit-item"', tc_js)
+        self.assertIn("tc-edit-panel inline-edit-form", tc_js)
+
 
 if __name__ == "__main__":
     unittest.main()

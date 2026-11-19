@@ -3,7 +3,7 @@
  * Left Pane: Today's Hour-by-Hour Timeline
  * Right Pane: Next 7 Days Agenda
  */
-import { renderQrSvg } from "../qr.js?v=47";
+import { renderQrSvg } from "../qr.js?v=48";
 
 function buildInitialCalendarState() {
   const today = new Date();

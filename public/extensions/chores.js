@@ -405,9 +405,15 @@ export default {
   },
 
   renderSlot(ctx) {
-    const { slot, appState, saveState, renderSlotOnly, escapeHtml } = ctx;
+    const { slot, appState, uiState, saveState, renderSlotOnly, escapeHtml } = ctx;
     const sid = escapeHtml(slot.id);
     const selId = CSS.escape(slot.id);
+    const drawerOpen = Boolean(
+      uiState &&
+        uiState.slotDrawers &&
+        uiState.slotDrawers[slot.id] &&
+        uiState.slotDrawers[slot.id].open
+    );
 
     if (!Array.isArray(appState.chores)) appState.chores = [];
     const todayStr = getTodayIsoDate();
@@ -415,15 +421,21 @@ export default {
     normalizeChoresList(appState.chores, todayStr);
 
     const ui = getSlotUi(slot.id);
+    if (!drawerOpen && ui.editingChoreId) {
+      ui.editingChoreId = null;
+    }
     const shouldAnimate = ui.animatePivot;
     ui.animatePivot = false;
 
     const allChores = appState.chores;
     const repeatingChores = allChores.filter((c) => c.repeating);
     const oneOffChores = allChores.filter((c) => !c.repeating);
+    const dueTodayRepeating = repeatingChores.filter((c) =>
+      (c.days || ALL_DAYS).includes(todayDayIdx)
+    );
 
-    const dueTodayRemaining = repeatingChores.filter(
-      (c) => (c.days || ALL_DAYS).includes(todayDayIdx) && !isChoreDoneToday(c, todayStr)
+    const dueTodayRemaining = dueTodayRepeating.filter(
+      (c) => !isChoreDoneToday(c, todayStr)
     ).length;
     const oneOffRemaining = oneOffChores.filter((c) => !c.done).length;
     const completedOneOffCount = oneOffChores.length - oneOffRemaining;
@@ -431,19 +443,23 @@ export default {
     const wrap = document.createElement("div");
     wrap.className = "chore-slot-wrap";
     wrap.innerHTML = `
-      <div class="sub-pivots">
-        <button type="button" class="pivot-tab ${ui.pivot === "checklist" ? "active" : ""}" data-pivot="checklist">
-          checklist (${dueTodayRemaining})
-        </button>
-        <button type="button" class="pivot-tab ${ui.pivot === "one-off" ? "active" : ""}" data-pivot="one-off">
-          one-off (${oneOffRemaining})
-        </button>
-        <button type="button" class="pivot-tab ${ui.pivot === "history" ? "active" : ""}" data-pivot="history">
-          history
-        </button>
-      </div>
       ${
-        ui.pivot === "one-off" && completedOneOffCount > 0
+        drawerOpen
+          ? ""
+          : `<div class="sub-pivots">
+              <button type="button" class="pivot-tab ${ui.pivot === "checklist" ? "active" : ""}" data-pivot="checklist">
+                checklist (${dueTodayRemaining})
+              </button>
+              <button type="button" class="pivot-tab ${ui.pivot === "one-off" ? "active" : ""}" data-pivot="one-off">
+                one-off (${oneOffRemaining})
+              </button>
+              <button type="button" class="pivot-tab ${ui.pivot === "history" ? "active" : ""}" data-pivot="history">
+                history
+              </button>
+            </div>`
+      }
+      ${
+        !drawerOpen && ui.pivot === "one-off" && completedOneOffCount > 0
           ? `<div style="display:flex; justify-content:flex-end; margin:-4px 0 8px 0;"><button type="button" class="slot-icon-btn" id="btnClearDoneOneOff_${sid}" style="font-size:12px;">clear done (${completedOneOffCount})</button></div>`
           : ""
       }
@@ -470,7 +486,7 @@ export default {
     // ========================================================================
     // 7-DAY HISTORY PIVOT (READ-ONLY LOG OF DONE ITEMS & UNDONE DAILY CHORES)
     // ========================================================================
-    if (ui.pivot === "history") {
+    if (!drawerOpen && ui.pivot === "history") {
       for (let daysAgo = 0; daysAgo < 7; daysAgo++) {
         const { iso, dayIdx, dayName, dateLabel } = getDayInfo(daysAgo);
 
@@ -558,24 +574,35 @@ export default {
       return wrap;
     }
 
-    const visibleChores =
-      ui.pivot === "checklist"
-        ? [...repeatingChores].sort((a, b) => {
+    const visibleChores = drawerOpen
+      ? [
+          ...[...repeatingChores].sort((a, b) => {
             const aToday = (a.days || ALL_DAYS).includes(todayDayIdx) ? 0 : 1;
             const bToday = (b.days || ALL_DAYS).includes(todayDayIdx) ? 0 : 1;
             if (aToday !== bToday) return aToday - bToday;
             return (
               Number(isChoreDoneToday(a, todayStr)) - Number(isChoreDoneToday(b, todayStr))
             );
-          })
-        : [...oneOffChores].sort((a, b) => Number(Boolean(a.done)) - Number(Boolean(b.done)));
+          }),
+          ...oneOffChores.filter((c) => !c.done),
+        ]
+      : ui.pivot === "checklist"
+      ? [...dueTodayRepeating].sort(
+          (a, b) =>
+            Number(isChoreDoneToday(a, todayStr)) - Number(isChoreDoneToday(b, todayStr))
+        )
+      : [...oneOffChores].sort((a, b) => Number(Boolean(a.done)) - Number(Boolean(b.done)));
 
     if (visibleChores.length === 0) {
       listEl.innerHTML = `
         <div class="agenda-empty" style="padding:10px 2px;">
           ${
-            ui.pivot === "checklist"
-              ? 'no repeating checklist items — tap "•••" to add one'
+            drawerOpen
+              ? "no open or repeating tasks — add one above"
+              : ui.pivot === "checklist"
+              ? repeatingChores.length > 0
+                ? 'nothing due today — tap "•••" to view or edit all tasks'
+                : 'no repeating checklist items — tap "•••" to add one'
               : 'no one-off tasks — tap "•••" to add one'
           }
         </div>
@@ -585,11 +612,11 @@ export default {
 
     visibleChores.forEach((c, idx) => {
       const isDone = isChoreDoneToday(c, todayStr);
-      const isEditing = ui.editingChoreId === c.id;
+      const isEditing = drawerOpen && ui.editingChoreId === c.id;
       const isScheduledToday = !c.repeating || (c.days || ALL_DAYS).includes(todayDayIdx);
 
       const row = document.createElement("div");
-      row.className = "metro-list-item";
+      row.className = isEditing ? "metro-list-item inline-edit-form" : "metro-list-item";
       if (shouldAnimate) {
         row.style.animationDelay = `${idx * 55}ms`;
       }
@@ -718,6 +745,8 @@ export default {
 
       const scheduleLabel = c.repeating
         ? `${isScheduledToday ? "" : "other days · "}${formatRepeatDays(c.days || ALL_DAYS)}`
+        : drawerOpen
+        ? "one-off"
         : "";
 
       row.innerHTML = `
@@ -732,7 +761,11 @@ export default {
             }
           </div>
         </div>
-        <button type="button" class="catalog-icon-btn" data-action="edit" title="Edit or delete chore">✎</button>
+        ${
+          drawerOpen
+            ? `<button type="button" class="catalog-icon-btn" data-action="edit" title="Edit or delete chore">✎</button>`
+            : ""
+        }
       `;
 
       const checkRow = row.querySelector(".check-row");
@@ -748,10 +781,13 @@ export default {
         }
       });
 
-      row.querySelector('[data-action="edit"]').addEventListener("click", () => {
-        ui.editingChoreId = c.id;
-        renderSlotOnly();
-      });
+      const editBtn = row.querySelector('[data-action="edit"]');
+      if (editBtn) {
+        editBtn.addEventListener("click", () => {
+          ui.editingChoreId = c.id;
+          renderSlotOnly();
+        });
+      }
 
       listEl.appendChild(row);
     });

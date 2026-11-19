@@ -3,7 +3,7 @@
  * Exposes `events["groceries:add-items"]` so other extensions (such as Meal Planner)
  * can send items to the grocery list without coupling to `appState.groceries`.
  */
-import { renderQrSvg } from "../qr.js?v=47";
+import { renderQrSvg } from "../qr.js?v=48";
 
 function countUncheckedForSource(groceries, source) {
   const target = String(source || "").trim().toLowerCase();

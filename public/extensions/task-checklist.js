@@ -376,8 +376,19 @@ export default {
 
   renderSlot(ctx) {
     ensureStyles();
-    const { slot, appState, saveState, renderSlotOnly, escapeHtml } = ctx;
+    const { slot, appState, uiState, saveState, renderSlotOnly, escapeHtml } = ctx;
     const ui = getSlotUi(slot.id);
+    const drawerOpen = Boolean(
+      uiState &&
+        uiState.slotDrawers &&
+        uiState.slotDrawers[slot.id] &&
+        uiState.slotDrawers[slot.id].open
+    );
+    if (!drawerOpen && ui.editingItemId) {
+      ui.editingItemId = null;
+      ui.editDraft = null;
+      ui.focusAddStep = false;
+    }
     const todayStr = getTodayIsoDate();
 
     if (!Array.isArray(appState.taskChecklists)) {
@@ -403,7 +414,7 @@ export default {
 
     items.forEach((item) => {
       const isCollapsed = ui.expandedItemId !== item.id;
-      const isEditingItem = ui.editingItemId === item.id;
+      const isEditingItem = drawerOpen && ui.editingItemId === item.id;
       const totalCount = item.tasks.length;
       const doneCount = item.tasks.filter((t) => t.done).length;
       const isAllDone = totalCount > 0 && doneCount === totalCount;
@@ -421,7 +432,7 @@ export default {
         const draft = ui.editDraft;
 
         group.innerHTML = `
-          <div class="tc-edit-panel">
+          <div class="tc-edit-panel inline-edit-form">
             <input class="metro-input" data-edit="item-title" value="${escapeHtml(draft.title)}" placeholder="checklist item..." />
             <div class="tc-edit-steps" data-edit="steps-list"></div>
             <div class="tc-inline-add">
@@ -578,7 +589,11 @@ export default {
         </button>
         <div class="tc-group-actions">
           <button type="button" class="catalog-icon-btn tc-reset-btn ${doneCount > 0 ? "has-done" : ""}" data-action="reset-item" title="Reset checklist">↻</button>
-          <button type="button" class="catalog-icon-btn" data-action="edit-item" title="Edit item & steps">✎</button>
+          ${
+            drawerOpen
+              ? `<button type="button" class="catalog-icon-btn" data-action="edit-item" title="Edit item & steps">✎</button>`
+              : ""
+          }
         </div>
       `;
 
@@ -595,16 +610,19 @@ export default {
         saveState(`Reset "${item.title}"`);
       });
 
-      header.querySelector('[data-action="edit-item"]').addEventListener("click", () => {
-        ui.expandedItemId = item.id;
-        ui.editingItemId = item.id;
-        ui.editDraft = {
-          title: item.title,
-          tasks: item.tasks.map((t) => ({ ...t })),
-        };
-        ui.focusAddStep = false;
-        renderSlotOnly();
-      });
+      const editItemBtn = header.querySelector('[data-action="edit-item"]');
+      if (editItemBtn) {
+        editItemBtn.addEventListener("click", () => {
+          ui.expandedItemId = item.id;
+          ui.editingItemId = item.id;
+          ui.editDraft = {
+            title: item.title,
+            tasks: item.tasks.map((t) => ({ ...t })),
+          };
+          ui.focusAddStep = false;
+          renderSlotOnly();
+        });
+      }
 
       group.appendChild(header);
 
@@ -613,7 +631,9 @@ export default {
         taskListEl.className = "tc-task-list";
 
         if (item.tasks.length === 0) {
-          taskListEl.innerHTML = `<div class="tc-empty-steps">no steps yet — tap ✎ to add</div>`;
+          taskListEl.innerHTML = `<div class="tc-empty-steps">${
+            drawerOpen ? "no steps yet — tap ✎ to add" : 'no steps yet — tap "•••" to edit'
+          }</div>`;
         }
 
         item.tasks.forEach((task) => {
