@@ -492,6 +492,25 @@ class TestServerSecretRedactionAndAntiSSRF(BaseServerTestCase):
             with self.assertRaises(ValueError):
                 server._validate_public_ics_url("http://169.254.169.254/latest/meta-data")
 
+    def test_safe_https_handler_python_312_compat(self):
+        """_SafeHTTPSHandler.https_open works without _check_hostname (removed in Python 3.12+)."""
+        handler = server._SafeHTTPSHandler()
+        if hasattr(handler, "_check_hostname"):
+            delattr(handler, "_check_hostname")
+        captured = {}
+
+        def fake_do_open(http_class, req, **kwargs):
+            captured["http_class"] = http_class
+            captured["kwargs"] = kwargs
+            return "ok"
+
+        handler.do_open = fake_do_open
+        result = handler.https_open(object())
+        self.assertEqual(result, "ok")
+        self.assertIs(captured["http_class"], server._SafeHTTPSConnection)
+        self.assertNotIn("check_hostname", captured["kwargs"])
+        self.assertIn("context", captured["kwargs"])
+
 
 class TestServerCalendarAndResilience(BaseServerTestCase):
     """Tests RFC 5545 calendar parsing, line unfolding, and date resilience."""

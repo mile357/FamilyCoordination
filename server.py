@@ -17,6 +17,7 @@ import sqlite3
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +36,7 @@ WEATHER_LOCK = threading.Lock()
 WEATHER_CACHE_MAX_SIZE = 64
 WEATHER_TTL_SECONDS = 15 * 60  # 15-minute server-side weather cache
 MAX_BODY_BYTES = 2 * 1024 * 1024
+MAX_ICS_BYTES = 10 * 1024 * 1024
 
 STATE_LOCK = threading.Lock()
 STATE_CACHE = None
@@ -656,7 +658,7 @@ class _SafeHTTPHandler(urllib.request.HTTPHandler):
 class _SafeHTTPSHandler(urllib.request.HTTPSHandler):
     def https_open(self, req):
         return self.do_open(
-            _SafeHTTPSConnection, req, context=self._context, check_hostname=self._check_hostname
+            _SafeHTTPSConnection, req, context=self._context
         )
 
 
@@ -1122,7 +1124,7 @@ def fetch_and_parse_ics(ics_url, calendar_id):
     )
     with opener.open(req, timeout=12) as resp:
         _verify_response_peer_ip(resp)
-        raw_ics = resp.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
+        raw_ics = resp.read(MAX_ICS_BYTES).decode("utf-8", errors="replace")
 
     # Unfold RFC 5545 folded lines
     unfolded = re.sub(r"\r?\n[ \t]", "", raw_ics)
@@ -1531,8 +1533,32 @@ class HubRequestHandler(SimpleHTTPRequestHandler):
                     synced_results[cal_id] = (feed_events, sync_time_str)
                 except ValueError as ve:
                     feed_errors.append(f"{cal_name}: {ve}")
-                except Exception:
-                    feed_errors.append(f"{cal_name}: failed to fetch or parse calendar feed")
+                except urllib.error.HTTPError as he:
+                    print(
+                        f"[calendar-sync] {cal_name}: HTTP {he.code} {he.reason}",
+                        file=sys.stderr,
+                    )
+                    feed_errors.append(
+                        f"{cal_name}: HTTP {he.code} fetching calendar feed"
+                    )
+                except urllib.error.URLError as ue:
+                    reason = re.sub(r"https?://\S+", "[redacted-url]", str(ue.reason))
+                    print(
+                        f"[calendar-sync] {cal_name}: URLError ({reason})",
+                        file=sys.stderr,
+                    )
+                    feed_errors.append(
+                        f"{cal_name}: network error fetching calendar feed ({reason})"
+                    )
+                except Exception as exc:
+                    safe_msg = re.sub(r"https?://\S+", "[redacted-url]", str(exc))
+                    print(
+                        f"[calendar-sync] {cal_name}: {type(exc).__name__}: {safe_msg}",
+                        file=sys.stderr,
+                    )
+                    feed_errors.append(
+                        f"{cal_name}: failed to fetch or parse calendar feed ({type(exc).__name__})"
+                    )
 
             if feeds_to_sync and not synced_results and feed_errors:
                 self._send_json(
